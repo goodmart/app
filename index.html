@@ -369,36 +369,61 @@
             </div>
         </div>
 
-        <!-- USERS & ROLES MANAGER -->
+        <!-- USERS & ROLES MANAGER WITH EXTENDED INFO & BRAND SELECTION -->
         <div id="tabUsers" class="space-y-4 hidden">
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
                 <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">ইউজার ও রোল ম্যানেজমেন্ট</h2>
-                <form onsubmit="handleCreateUser(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-5 bg-blue-50 p-4 rounded-xl border border-blue-200">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Username</label>
-                        <input type="text" id="newUsername" placeholder="e.g. manager1" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                <form onsubmit="handleCreateUser(event)" class="space-y-4 mb-6 bg-blue-50 p-4 rounded-xl border border-blue-200">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Full Name</label>
+                            <input type="text" id="newFullName" placeholder="e.g. Md. Rahim Uddin" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Phone Number</label>
+                            <input type="text" id="newPhone" placeholder="e.g. 01700000000" class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Designation / Role Title</label>
+                            <input type="text" id="newDesignation" placeholder="e.g. Distribution Officer" class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Username (Login ID)</label>
+                            <input type="text" id="newUsername" placeholder="e.g. rahim123" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Password</label>
+                            <input type="password" id="newUserPass" placeholder="Password" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Role Type</label>
+                            <select id="newUserRole" class="w-full px-3 py-2 text-sm border rounded-xl bg-white font-bold">
+                                <option value="user">Staff / User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Password</label>
-                        <input type="password" id="newUserPass" placeholder="Password" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Assign Allowed Brands</label>
+                        <div id="userBrandCheckboxes" class="flex flex-wrap gap-3 bg-white p-3 border rounded-xl"></div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Role</label>
-                        <select id="newUserRole" class="w-full px-3 py-2 text-sm border rounded-xl bg-white font-bold">
-                            <option value="user">Staff / User</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-sm shadow">Create User</button>
+                    <div class="pt-1">
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow">Create User</button>
                     </div>
                 </form>
+
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-xs sm:text-sm">
                         <thead>
                             <tr class="bg-gray-50 text-gray-600 uppercase text-[10px]">
+                                <th class="py-2.5 px-3 text-left">Full Name</th>
                                 <th class="py-2.5 px-3 text-left">Username</th>
+                                <th class="py-2.5 px-3 text-left">Phone</th>
+                                <th class="py-2.5 px-3 text-left">Designation</th>
                                 <th class="py-2.5 px-3 text-left">Role</th>
+                                <th class="py-2.5 px-3 text-left">Assigned Brands</th>
                                 <th class="py-2.5 px-3 text-center">Action</th>
                             </tr>
                         </thead>
@@ -502,6 +527,7 @@
                     if (currentUser) {
                         loadAllBrands();
                         populateFilterBrand();
+                        renderUserBrandCheckboxes();
                     }
                 }
             });
@@ -558,11 +584,10 @@
             if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]));
             if (!localStorage.getItem("gm_users")) {
                 var defaultUsers = [
-                    { username: "admin", pass: "admin123", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
-                    { username: "dabur_user", pass: "user123", role: "user", brands: ["Dabur"] }
+                    { username: "admin", pass: "admin123", fullName: "Administrator", phone: "01714692560", designation: "Proprietor", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
+                    { username: "dabur_user", pass: "user123", fullName: "Staff Member", phone: "", designation: "Sales Executive", role: "user", brands: ["Dabur"] }
                 ];
                 localStorage.setItem("gm_users", JSON.stringify(defaultUsers));
-                // Push default users to firebase if not present
                 defaultUsers.forEach(u => syncToFirebase("users", u.username, u));
             }
             if (!localStorage.getItem("gm_sos")) {
@@ -668,7 +693,7 @@
         function showMainApp() {
             document.getElementById("loginScreen").classList.add("hidden");
             document.getElementById("mainApp").classList.remove("hidden");
-            document.getElementById("currentUserDisplay").innerText = currentUser.username;
+            document.getElementById("currentUserDisplay").innerText = currentUser.fullName || currentUser.username;
             document.getElementById("currentUserRole").innerText = currentUser.role;
             document.getElementById("date").valueAsDate = new Date();
 
@@ -707,6 +732,7 @@
             loadAllBrands();
             populateFilterBrand();
             renderSoList();
+            renderUserBrandCheckboxes();
             renderUserList();
             onBrandOrTypeChange();
             renderDashboard();
@@ -824,6 +850,7 @@
                     document.getElementById("tabUsers").classList.remove("hidden");
                     var btn = document.getElementById("tabUsersBtn");
                     if (btn) btn.className = "bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
+                    renderUserBrandCheckboxes();
                     renderUserList();
                 } else if (tabName === 'analytics') {
                     document.getElementById("tabAnalytics").classList.remove("hidden");
@@ -852,15 +879,38 @@
         }
 
         // USER MANAGEMENT FUNCTIONS
+        function renderUserBrandCheckboxes() {
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var container = document.getElementById("userBrandCheckboxes");
+            if (!container) return;
+            container.innerHTML = "";
+            brands.forEach(b => {
+                var lbl = document.createElement("label");
+                lbl.className = "inline-flex items-center text-xs font-semibold cursor-pointer mr-3";
+                lbl.innerHTML = `<input type="checkbox" value="${b}" class="user-brand-chk rounded text-blue-600 mr-1.5" checked> ${b}`;
+                container.appendChild(lbl);
+            });
+        }
+
         function handleCreateUser(e) {
             e.preventDefault();
+            var fullName = document.getElementById("newFullName").value.trim();
+            var phone = document.getElementById("newPhone").value.trim();
+            var designation = document.getElementById("newDesignation").value.trim();
             var username = document.getElementById("newUsername").value.trim().toLowerCase();
             var pass = document.getElementById("newUserPass").value.trim();
             var role = document.getElementById("newUserRole").value;
-            var allBrands = JSON.parse(localStorage.getItem("gm_brands")) || [];
 
-            if (!username || !pass) {
-                showToast('ইউজারনেম ও পাসওয়ার্ড দিন', 'error');
+            var chks = document.querySelectorAll(".user-brand-chk:checked");
+            var assignedBrands = Array.from(chks).map(c => c.value);
+
+            if (!username || !pass || !fullName) {
+                showToast('ইউজারনেম, পাসওয়ার্ড ও নাম দিন', 'error');
+                return;
+            }
+
+            if (assignedBrands.length === 0 && role !== 'admin') {
+                showToast('কমপক্ষে ১টি ব্র্যান্ড সিলেক্ট করুন', 'error');
                 return;
             }
 
@@ -872,16 +922,22 @@
             }
 
             var newUser = {
+                fullName: fullName,
+                phone: phone,
+                designation: designation,
                 username: username,
                 pass: pass,
                 role: role,
-                brands: allBrands
+                brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
             };
 
             users.push(newUser);
             localStorage.setItem("gm_users", JSON.stringify(users));
             syncToFirebase("users", username, newUser);
 
+            document.getElementById("newFullName").value = "";
+            document.getElementById("newPhone").value = "";
+            document.getElementById("newDesignation").value = "";
             document.getElementById("newUsername").value = "";
             document.getElementById("newUserPass").value = "";
             renderUserList();
@@ -894,17 +950,22 @@
             if (!tbody) return;
             tbody.innerHTML = "";
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="py-6 text-center text-gray-400">কোনো ইউজার নেই</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-gray-400">কোনো ইউজার নেই</td></tr>';
                 return;
             }
             for (var i = 0; i < users.length; i++) {
                 var u = users[i];
                 var roleBadge = u.role === 'admin' ? '<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-bold">Admin</span>' : '<span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">User</span>';
                 var delBtn = u.username !== 'admin' ? '<button onclick="deleteUser(\'' + u.username + '\')" class="text-red-500 font-bold text-xs">Delete</button>' : '<span class="text-gray-300 text-xs">Protected</span>';
-                
+                var brandDisplay = u.role === 'admin' ? 'All Brands' : (u.brands ? u.brands.join(", ") : "None");
+
                 var tr = document.createElement("tr");
-                tr.innerHTML = '<td class="py-3 px-3 font-bold text-gray-800">' + u.username + '</td>' +
+                tr.innerHTML = '<td class="py-3 px-3 font-bold text-gray-800">' + (u.fullName || u.username) + '</td>' +
+                               '<td class="py-3 px-3 font-semibold text-blue-700">' + u.username + '</td>' +
+                               '<td class="py-3 px-3 text-gray-600">' + (u.phone || '-') + '</td>' +
+                               '<td class="py-3 px-3 text-gray-600">' + (u.designation || '-') + '</td>' +
                                '<td class="py-3 px-3">' + roleBadge + '</td>' +
+                               '<td class="py-3 px-3 font-semibold text-xs text-amber-700">' + brandDisplay + '</td>' +
                                '<td class="py-3 px-3 text-center">' + delBtn + '</td>';
                 tbody.appendChild(tr);
             }
@@ -948,6 +1009,7 @@
             loadAllBrands();
             populateFilterBrand();
             renderBrands();
+            renderUserBrandCheckboxes();
             showToast('ব্র্যান্ড যোগ হয়েছে', 'success');
         }
 
@@ -978,6 +1040,7 @@
             populateFilterBrand();
             renderBrands();
             renderSoList();
+            renderUserBrandCheckboxes();
             showToast('ব্র্যান্ড মুছে ফেলা হয়েছে', 'success');
         }
 
@@ -1140,7 +1203,7 @@
                 document.getElementById("invClaimRow").style.display = "none";
             }
             document.getElementById("invSoRow").style.display = entry.type === "Stock In" ? "none" : "flex";
-            document.getElementById("invPreparedBy").textContent = currentUser.username + " (" + currentUser.role.toUpperCase() + ")";
+            document.getElementById("invPreparedBy").textContent = (currentUser.fullName || currentUser.username) + " (" + currentUser.role.toUpperCase() + ")";
             document.getElementById("invoiceModal").classList.add("show");
         }
 
