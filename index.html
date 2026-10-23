@@ -325,16 +325,16 @@
                 <p id="noEntriesMsg" class="text-center text-gray-400 text-sm py-6 hidden">কোনো লেনদেন পাওয়া যায়নি</p>
             </div>
 
-            <!-- USER PANEL SUMMARY TABLE (Only visible to 'user' role) -->
+            <!-- USER PANEL SUMMARY TABLE (Only visible to 'user' / staff role) -->
             <div id="userPanelSummaryArea" class="bg-white p-4 rounded-2xl shadow-md overflow-hidden hidden">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h3 class="font-bold text-sm text-gray-800">Inventory Summary</h3>
                     <button onclick="exportSummaryCSV()" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2 px-3 rounded-xl shadow">↓ Export Summary CSV</button>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full text-xs sm:text-sm">
+                    <table class="min-w-full text-xs sm:text-sm border border-gray-200">
                         <thead>
-                            <tr class="bg-blue-50 text-blue-900 uppercase text-[10px] font-bold">
+                            <tr class="bg-blue-50 text-blue-900 uppercase text-[10px] font-bold border-b border-gray-200">
                                 <th class="py-2.5 px-3 text-left">Brand</th>
                                 <th class="py-2.5 px-3 text-right">Stock In (TK)</th>
                                 <th class="py-2.5 px-3 text-right">Stock Out (TK)</th>
@@ -392,7 +392,7 @@
             </div>
         </div>
 
-        <!-- USERS & ROLES MANAGER WITH USER EDIT OPTION -->
+        <!-- USERS & ROLES MANAGER -->
         <div id="tabUsers" class="space-y-4 hidden">
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
@@ -538,7 +538,6 @@
         function setupRealtimeListeners() {
             if (!db) return;
 
-            // Sync Entries
             db.collection("entries").onSnapshot(function(snapshot) {
                 var entries = [];
                 snapshot.forEach(function(doc) {
@@ -550,7 +549,6 @@
                 renderDashboard();
             });
 
-            // Sync Brands
             db.collection("settings").doc("brands").onSnapshot(function(doc) {
                 if (doc.exists && doc.data().list) {
                     localStorage.setItem("gm_brands", JSON.stringify(doc.data().list));
@@ -562,7 +560,6 @@
                 }
             });
 
-            // Sync Users
             db.collection("users").onSnapshot(function(snapshot) {
                 var users = [];
                 snapshot.forEach(function(doc) {
@@ -577,7 +574,6 @@
                 }
             });
 
-            // Sync Sales Officers
             db.collection("sos").onSnapshot(function(snapshot) {
                 var sos = [];
                 snapshot.forEach(function(doc) {
@@ -592,7 +588,6 @@
                 }
             });
 
-            // Sync Counters
             db.collection("settings").doc("counters").onSnapshot(function(doc) {
                 if (doc.exists) {
                     localStorage.setItem("gm_invoice_counters", JSON.stringify(doc.data()));
@@ -635,7 +630,6 @@
         var currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || null;
         var lastSavedEntry = null;
 
-        // BOTTOM NAV - RELIABLE
         document.addEventListener('DOMContentLoaded', function() {
             var bottomNav = document.getElementById('bottomNav');
             if (bottomNav) {
@@ -759,7 +753,6 @@
                     brandsMobileBtn.style.display = 'none';
                     brandsMobileBtn.setAttribute('data-hidden', 'true');
                 }
-                // Show Summary Area only for User / Staff Panel
                 if (userPanelSummaryArea) userPanelSummaryArea.classList.remove("hidden");
             }
 
@@ -917,7 +910,6 @@
             }
         }
 
-        // USER MANAGEMENT FUNCTIONS WITH FULL EDIT SUPPORT
         function renderUserBrandCheckboxes(selectedBrands) {
             selectedBrands = selectedBrands || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
@@ -1474,7 +1466,6 @@
                 }
             }
 
-            // Render User Panel Bottom Summary Table if currentUser is non-admin user
             if (currentUser && currentUser.role !== 'admin') {
                 renderUserPanelSummary(filtered, allowedBrands);
             }
@@ -1522,7 +1513,6 @@
                 tbody.appendChild(tr);
             }
 
-            // Total Row
             var totalTr = document.createElement("tr");
             totalTr.className = "bg-gray-100 font-bold border-t-2 border-gray-300";
             totalTr.innerHTML = '<td class="py-2.5 px-3 text-gray-900">Total</td>' +
@@ -1582,36 +1572,55 @@
             if (e) { lastSavedEntry = e; showInvoiceModal(e); }
         }
 
+        // FULL BACKUP CSV - EXACT 100% MATCH WITH ORIGINAL SAMPLE FILE STRUCTURE
         function exportFullBackup() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             if (entries.length === 0) {
                 showToast('এক্সপোর্ট করার মতো ডেটা নেই', 'error');
                 return;
             }
-            var csv = "Date,Brand,Invoice Type,Invoice Number,Sales Officer,Stock In,Stock Out,Claim,Claim Received,Net Stock Out,Details\n";
-            var totalIn = 0, totalOut = 0, totalClaim = 0, totalClaimRec = 0;
+            // Header matching original sample file exactly
+            var csv = "Date,Brand,Invoice Type,Invoice Number,Stock In,Stock Out,Claim,Net Stock Out\n";
+            
+            var totalIn = 0, totalOut = 0, totalClaim = 0, totalNetOut = 0;
             entries.sort(function(a, b) { return a.date.localeCompare(b.date); });
+            
             for (var i = 0; i < entries.length; i++) {
                 var e = entries[i];
-                var netOut = (e.debit || 0) - (e.claim || 0);
+                var netOutVal = e.type === "Stock Out" ? ((e.debit || 0) - (e.claim || 0)) : "";
+                
                 totalIn += (e.credit || 0);
                 totalOut += (e.debit || 0);
                 totalClaim += (e.claim || 0);
-                totalClaimRec += (e.claimReceived || 0);
-                csv += e.date + "," + e.brand + "," + e.type + "," + (e.invoiceNum || "") + "," + (e.so || "N/A") + "," +
-                       (e.credit || "") + "," + (e.debit || "") + "," + (e.claim || "") + "," + (e.claimReceived || "") + "," +
-                       (e.type === "Stock Out" ? netOut.toFixed(2) : "") + "," +
-                       '"' + (e.details || "").replace(/"/g, '""') + '"\n';
+                if (e.type === "Stock Out") {
+                    totalNetOut += ((e.debit || 0) - (e.claim || 0));
+                }
+
+                csv += e.date + "," + 
+                       e.brand + "," + 
+                       e.type + "," + 
+                       (e.invoiceNum || "") + "," + 
+                       (e.credit ? e.credit : "") + "," + 
+                       (e.debit ? e.debit : "") + "," + 
+                       (e.claim ? e.claim : "") + "," + 
+                       (netOutVal !== "" ? netOutVal.toFixed(2) : "") + "\n";
             }
-            var netStockOut = totalOut - totalClaim;
+
             var stockRemaining = totalIn - totalOut;
+
+            // Empty line before summary totals (Matching sample line 25)
             csv += "\n";
-            csv += ",,,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalClaimRec.toFixed(2) + "," + netStockOut.toFixed(2) + ",\n";
-            csv += ",,,Stock Remaining,,,,,,," + stockRemaining.toFixed(2) + "\n";
+            
+            // Totals Row (Matching sample line 26)
+            csv += ",,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalNetOut.toFixed(2) + "\n";
+            
+            // Stock Remaining Row (Matching sample line 27)
+            csv += ",,,Stock Remaining,,,,," + stockRemaining.toFixed(2) + "\n";
+
             var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
             var link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = "GoodMart_FullBackup_" + new Date().toISOString().slice(0,10) + ".csv";
+            link.download = "Good_Mart_Enterprise_Inventory_" + new Date().toISOString().slice(0,10) + ".csv";
             link.click();
             showToast('Full Backup CSV ডাউনলোড হয়েছে', 'success');
         }
@@ -1639,24 +1648,22 @@
                         var cols = parseCSVLine(line);
                         if (cols.length < 4) continue;
                         var date = cols[0], brand = cols[1], type = cols[2], invNo = cols[3];
-                        var so = cols[4] || "N/A";
-                        var stockIn = parseFloat(cols[5]) || 0;
-                        var stockOut = parseFloat(cols[6]) || 0;
-                        var claim = parseFloat(cols[7]) || 0;
-                        var claimRec = parseFloat(cols[8]) || 0;
-                        var details = cols[10] || cols[9] || "";
+                        var stockIn = parseFloat(cols[4]) || 0;
+                        var stockOut = parseFloat(cols[5]) || 0;
+                        var claim = parseFloat(cols[6]) || 0;
+                        
                         if (!date || !brand || !type) continue;
                         if (type !== "Stock In" && type !== "Stock Out" && type !== "Claim Received") continue;
                         
                         var entryObj = {
                             id: 'entry_' + Date.now() + '_' + i,
-                            date: date, brand: brand, so: so, type: type,
+                            date: date, brand: brand, so: "N/A", type: type,
                             invoiceNum: invNo || "IMP-" + i,
                             credit: type === "Stock In" ? stockIn : 0,
                             debit: type === "Stock Out" ? stockOut : 0,
                             claim: type === "Stock Out" ? claim : 0,
-                            claimReceived: type === "Claim Received" ? claimRec : 0,
-                            details: details
+                            claimReceived: type === "Claim Received" ? claim : 0,
+                            details: ""
                         };
                         newEntries.push(entryObj);
                         syncToFirebase("entries", entryObj.id, entryObj);
