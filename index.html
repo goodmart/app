@@ -1831,9 +1831,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
               <button id="fbRestore" type="button" style="background:#1d4ed8;color:white;border-radius:10px;padding:11px;font-weight:700">Cloud → এই ফোনে Restore</button>
               <button id="fbUpload" type="button" style="background:#0f766e;color:white;border-radius:10px;padding:11px;font-weight:700">এই ফোন → Cloud Backup</button>
               <button id="fbMerge" type="button" style="background:#7c3aed;color:white;border-radius:10px;padding:11px;font-weight:700">Merge local + cloud</button>
-              <button id="fbSignout" type="button" style="background:#f3f4f6;border-radius:10px;padding:10px">Firebase Logout</button>
             </div>
-            <p style="font-size:11px;color:#6b7280;margin-top:12px">Firebase Authentication account is separate from the app's existing admin/user login.</p>
+            <p style="font-size:11px;color:#6b7280;margin-top:12px">Firebase একবার সংযুক্ত হলে সেশন এই ব্রাউজারে সংরক্ষিত থাকবে। Good Mart-এর Admin/User Login আলাদা থাকবে। Firebase Logout অপশন সরানো হয়েছে।</p>
           </div>`;
         document.body.appendChild(panel);
         panel.querySelector("#fbClose").onclick = () => panel.style.display = "none";
@@ -1857,12 +1856,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
         panel.querySelector("#fbRestore").onclick = () => guardedAction("restore");
         panel.querySelector("#fbUpload").onclick = () => guardedAction("upload");
         panel.querySelector("#fbMerge").onclick = () => guardedAction("merge");
-        panel.querySelector("#fbSignout").onclick = async () => {
-          await signOut(auth);
-          cloudReady = false;
-          setStatus("Firebase Logout হয়েছে");
-          toast("Firebase Logout হয়েছে", "success");
-        };
         return panel;
       }
       async function guardedAction(action) {
@@ -2016,17 +2009,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 
       // Wait for Firebase's browser-local persistence to initialize before
       // subscribing to auth state or allowing account interactions.
-      // This helps keep Firebase signed in across page refreshes.
+      // This keeps Firebase signed in across page refreshes and browser restarts.
       await setPersistence(auth, browserLocalPersistence);
       onAuthStateChanged(auth, async user => {
         currentFirebaseUser = user;
         cloudReady = false;
         if (!user) {
-          setStatus("Firebase account-এ Login করুন");
+          setStatus("Firebase প্রথমবার সংযুক্ত করতে একবার Login প্রয়োজন; এরপর সেশন সংরক্ষিত থাকবে।");
+          ensurePanel();
+          const authFields = panel.querySelectorAll("#fbEmail, #fbPassword, #fbLogin, #fbCreate");
+          authFields.forEach(el => el.style.display = "");
           return;
         }
         ensurePanel();
-        setStatus("Signed in: " + user.email + " · Cloud যাচাই হচ্ছে…");
+        const authFields = panel.querySelectorAll("#fbEmail, #fbPassword, #fbLogin, #fbCreate");
+        authFields.forEach(el => el.style.display = "none");
+        setStatus("Firebase স্থায়ী সেশনে সংযুক্ত: " + (user.email || "Connected") + " · Cloud যাচাই হচ্ছে…");
         await checkCloudOnLaunch();
       });
     </script>
