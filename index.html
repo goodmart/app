@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Good Mart Enterprise - Distribution Manager (Firebase)</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- HTML2Canvas for Invoice Image Generation -->
+    <title>Good Mart Enterprise - Distribution Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <style>
         :root { --safe-bottom: env(safe-area-inset-bottom); }
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        
+        body { -webkit-tap-highlight-color: transparent; }
         .card-blue { background: linear-gradient(135deg, #1e3a8a, #1e40af); }
         .card-indigo { background: linear-gradient(135deg, #312e81, #3730a3); }
         .card-amber { background: linear-gradient(135deg, #78350f, #92400e); }
@@ -29,7 +28,6 @@
         #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
         #toast.success { background: #059669; }
         #toast.error { background: #dc2626; }
-        #toast.info { background: #2563eb; }
 
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; right: 0; background: white;
@@ -53,68 +51,25 @@
             .desktop-tabs { display: none !important; }
         }
         @media print {
-            .bottom-nav, .desktop-tabs, #loginScreen, button, .no-print, #invoiceModal, #firebaseModal { display: none !important; }
+            .bottom-nav, .desktop-tabs, #loginScreen, button, .no-print, #invoiceModal { display: none !important; }
             body { background: white; }
         }
 
-        #invoiceModal, #firebaseModal {
+        #invoiceModal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10000;
             display: none; align-items: center; justify-content: center; padding: 12px;
         }
-        #invoiceModal.show, #firebaseModal.show { display: flex; }
-        #invoiceContent, #firebaseModalContent {
-            background: white; border-radius: 16px; max-width: 440px; width: 100%;
+        #invoiceModal.show { display: flex; }
+        #invoiceContent {
+            background: white; border-radius: 12px; max-width: 400px; width: 100%;
             max-height: 92vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.35);
         }
         .invoice-box { border: 2px solid #1e40af; border-radius: 8px; overflow: hidden; }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 antialiased min-h-screen">
+<body class="bg-gray-100 font-sans text-gray-800 antialiased min-h-screen">
 
     <div id="toast"></div>
-
-    <!-- Firebase Config Modal -->
-    <div id="firebaseModal">
-        <div id="firebaseModalContent" class="p-6">
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="text-lg font-bold text-gray-900">🔥 Firebase Config (Cloud Data)</h3>
-                <button onclick="closeFirebaseModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
-            </div>
-            <p class="text-xs text-gray-500 mb-4">
-                গুগল ফায়ারবেস কনফিগারেশন সেট করুন যাতে সব ডিভাইস লাইভ ডাটা সিঙ্ক হতে পারে।
-            </p>
-            <form id="firebaseConfigForm" onsubmit="saveFirebaseConfig(event)" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-700">apiKey</label>
-                    <input type="text" id="cfgApiKey" placeholder="AIzaSy..." required class="w-full px-3 py-2 text-xs border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-700">authDomain</label>
-                    <input type="text" id="cfgAuthDomain" placeholder="your-app.firebaseapp.com" required class="w-full px-3 py-2 text-xs border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-700">projectId</label>
-                    <input type="text" id="cfgProjectId" placeholder="your-app-id" required class="w-full px-3 py-2 text-xs border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-700">storageBucket</label>
-                    <input type="text" id="cfgStorageBucket" placeholder="your-app.appspot.com" class="w-full px-3 py-2 text-xs border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-700">messagingSenderId</label>
-                    <input type="text" id="cfgMessagingSenderId" placeholder="123456789" class="w-full px-3 py-2 text-xs border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-700">appId</label>
-                    <input type="text" id="cfgAppId" placeholder="1:123456789:web:abcdef..." required class="w-full px-3 py-2 text-xs border rounded-lg">
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs shadow">Save & Re-Connect</button>
-                    <button type="button" onclick="clearFirebaseConfig()" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 py-2.5 rounded-xl text-xs">Reset</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- Invoice Modal -->
     <div id="invoiceModal">
@@ -175,22 +130,14 @@
     <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gray-900 px-4 py-8">
         <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
             <h2 class="text-2xl sm:text-3xl font-extrabold text-center text-blue-600 mb-1">Good Mart Enterprise</h2>
-            <p class="text-center text-gray-500 mb-4 text-xs sm:text-sm">Distribution Management System</p>
-            
-            <!-- Connection Status Badge -->
-            <div id="cloudStatusBadge" class="mb-4 text-center py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center gap-2">
-                <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                <span id="statusText">Connecting Firebase...</span>
-            </div>
-
-            <div class="mb-5 p-3 bg-blue-50 border border-blue-200 rounded-xl text-center">
+            <p class="text-center text-gray-500 mb-6 text-xs sm:text-sm">Distribution Management System</p>
+            <div class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-xl text-center">
                 <p class="text-xs text-blue-800 font-bold mb-2">Quick Test Login:</p>
                 <div class="flex gap-2">
                     <button type="button" onclick="quickLogin('admin')" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg w-1/2 shadow">🔑 Admin</button>
                     <button type="button" onclick="quickLogin('dabur_user')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg w-1/2 shadow">👤 Staff</button>
                 </div>
             </div>
-
             <form onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
                     <label class="block text-gray-700 text-xs font-bold mb-1 uppercase">Username</label>
@@ -203,12 +150,8 @@
                 <p id="loginError" class="text-red-500 text-xs hidden font-bold text-center">ভুল ইউজারনেম বা পাসওয়ার্ড!</p>
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Login</button>
             </form>
-
-            <div class="mt-5 flex justify-between items-center text-xs text-gray-500">
-                <button onclick="openFirebaseModal()" class="text-blue-600 hover:underline font-semibold flex items-center gap-1">
-                    <span>🔥 Firebase Config</span>
-                </button>
-                <button onclick="resetDefaults()" class="text-red-500 hover:underline font-semibold">Reset App Data</button>
+            <div class="mt-5 text-center">
+                <button onclick="resetDefaults()" class="text-xs text-red-500 hover:underline font-semibold">Reset App Data</button>
             </div>
         </div>
     </div>
@@ -217,21 +160,23 @@
     <div id="mainApp" class="container mx-auto px-3 sm:px-4 py-4 max-w-7xl hidden">
         <div class="bg-white p-4 rounded-2xl shadow-md mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <h1 class="text-lg sm:text-xl font-bold text-blue-600">Good Mart Enterprise</h1>
-                    <span id="appStatusPill" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-green-100 text-green-800">☁️ Cloud Live</span>
+                <h1 class="text-lg sm:text-xl font-bold text-blue-600">Good Mart Enterprise</h1>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <p class="text-gray-500 text-xs">
+                        <span id="currentUserDisplay" class="font-bold text-indigo-700"></span>
+                        <span id="currentUserRole" class="ml-1 uppercase bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-[10px] font-semibold"></span>
+                    </p>
+                    <!-- Admin Only Firebase Controls -->
+                    <div id="adminDbStatusArea" class="hidden flex items-center gap-1.5 ml-2 border-l pl-2">
+                        <span id="dbStatusBadge" class="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">☁️ Firebase Connected</span>
+                    </div>
                 </div>
-                <p class="text-gray-500 text-xs mt-0.5">
-                    <span id="currentUserDisplay" class="font-bold text-indigo-700"></span>
-                    <span id="currentUserRole" class="ml-1 uppercase bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-[10px] font-semibold"></span>
-                </p>
             </div>
             <div class="desktop-tabs flex flex-wrap gap-2">
                 <button onclick="switchTab('dashboard')" id="tabDashboardBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Transactions</button>
                 <button onclick="switchTab('soManager')" id="tabSoBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Sales Officers</button>
                 <button onclick="switchTab('brands')" id="tabBrandsBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Brands</button>
                 <button onclick="switchTab('analytics')" id="tabAnalyticsBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Analytics</button>
-                <button onclick="openFirebaseModal()" class="bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold py-2 px-3 rounded-lg text-xs shadow">⚙️ Config</button>
                 <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Logout</button>
             </div>
         </div>
@@ -463,246 +408,146 @@
         </button>
     </div>
 
-    <!-- Firebase SDK Scripts (v11 Modular JS loaded via script type="module") -->
-    <script type="module">
-        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script>
+        // PERMANENT FIREBASE CONFIGURATION (goodmartall)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCr_R6wS5oM6sf8KXi1KJUq0fb4sUY492g",
+            authDomain: "goodmartall.firebaseapp.com",
+            projectId: "goodmartall",
+            storageBucket: "goodmartall.firebasestorage.app",
+            messagingSenderId: "631730015025",
+            appId: "1:631730015025:web:0c3e77f563e22f4ab67e10",
+            measurementId: "G-KP8HVLBR5D"
+        };
 
-        // Global Variables
-        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'good-mart-dist-app';
-        let db = null;
-        let auth = null;
-        let firebaseApp = null;
-        let isCloudConnected = false;
+        var db = null;
+        var isFirebaseConnected = false;
 
-        // Local state copies synced with Firestore
-        window.dbEntries = [];
-        window.dbBrands = ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"];
-        window.dbSos = [
-            { id: 'so_1', brand: 'Dabur', name: 'SO - Rahim' },
-            { id: 'so_2', brand: 'Dabur', name: 'SO - Karim' }
-        ];
-        window.dbCounters = {};
-
-        // Default Users
-        window.gmUsers = [
-            { username: "admin", pass: "admin123", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
-            { username: "dabur_user", pass: "user123", role: "user", brands: ["Dabur"] }
-        ];
-
-        // System Paths (Mandatory Rule)
-        function getCollectionPath(colName) {
-            return `artifacts/${window.appId}/public/data/${colName}`;
-        }
-        function getDocRef(colName, docId) {
-            return doc(db, 'artifacts', window.appId, 'public', 'data', colName, docId);
-        }
-
-        // Initialize Firebase
-        async function initFirebase() {
-            let config = null;
-            
-            // Check injected environment config or custom user config
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                try { config = JSON.parse(__firebase_config); } catch(e){}
-            }
-            if (!config) {
-                const savedCfg = localStorage.getItem("gm_firebase_config");
-                if (savedCfg) {
-                    try { config = JSON.parse(savedCfg); } catch(e){}
-                }
-            }
-
-            if (!config || !config.apiKey) {
-                updateConnectionStatus(false, "Demo Mode (Local Data Only)");
-                initLocalStorageFallback();
-                return;
-            }
-
+        function initFirebase() {
             try {
-                if (!getApps().length) {
-                    firebaseApp = initializeApp(config);
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
                 }
-                db = getFirestore(firebaseApp);
-                auth = getAuth(firebaseApp);
-
-                // Authenticate
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                isCloudConnected = true;
-                updateConnectionStatus(true, "Firebase Cloud Connected");
+                db = firebase.firestore();
+                isFirebaseConnected = true;
                 setupRealtimeListeners();
-
             } catch (err) {
                 console.error("Firebase init failed:", err);
-                updateConnectionStatus(false, "Cloud Error: Using Offline Fallback");
-                initLocalStorageFallback();
+                isFirebaseConnected = false;
             }
         }
 
-        function updateConnectionStatus(connected, text) {
-            const badge = document.getElementById("cloudStatusBadge");
-            const dot = document.getElementById("statusDot");
-            const txt = document.getElementById("statusText");
-            const pill = document.getElementById("appStatusPill");
-
-            if (txt) txt.textContent = text;
-            if (connected) {
-                if (badge) badge.className = "mb-4 text-center py-1.5 px-3 rounded-xl text-xs font-bold bg-green-50 text-green-800 border border-green-200 flex items-center justify-center gap-2";
-                if (dot) dot.className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
-                if (pill) pill.innerHTML = "☁️ Cloud Live";
-            } else {
-                if (badge) badge.className = "mb-4 text-center py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center gap-2";
-                if (dot) dot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
-                if (pill) pill.innerHTML = "💾 Local Mode";
-            }
-        }
-
-        // Firestore Real-time Listeners
         function setupRealtimeListeners() {
             if (!db) return;
 
-            // 1. Entries Listener
-            onSnapshot(collection(db, 'artifacts', window.appId, 'public', 'data', 'gm_entries'), (snapshot) => {
-                const list = [];
-                snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
-                window.dbEntries = list;
-                if (window.currentUser) window.renderDashboard();
-            }, (err) => console.error("Entries listener error:", err));
-
-            // 2. Brands Listener
-            onSnapshot(collection(db, 'artifacts', window.appId, 'public', 'data', 'gm_brands'), (snapshot) => {
-                const list = [];
-                snapshot.forEach(docSnap => {
-                    const data = docSnap.data();
-                    if (data.name) list.push(data.name);
+            // Sync Entries
+            db.collection("entries").onSnapshot(function(snapshot) {
+                var entries = [];
+                snapshot.forEach(function(doc) {
+                    var data = doc.data();
+                    data.id = doc.id;
+                    entries.push(data);
                 });
-                if (list.length > 0) window.dbBrands = list;
-                if (window.currentUser) {
-                    window.loadAllBrands();
-                    window.populateFilterBrand();
-                    window.renderBrands();
-                }
-            }, (err) => console.error("Brands listener error:", err));
+                localStorage.setItem("gm_entries", JSON.stringify(entries));
+                renderDashboard();
+            });
 
-            // 3. Sales Officers Listener
-            onSnapshot(collection(db, 'artifacts', window.appId, 'public', 'data', 'gm_sos'), (snapshot) => {
-                const list = [];
-                snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
-                if (list.length > 0) window.dbSos = list;
-                if (window.currentUser) {
-                    window.renderSoList();
-                    window.handleBrandChange();
+            // Sync Brands
+            db.collection("settings").doc("brands").onSnapshot(function(doc) {
+                if (doc.exists && doc.data().list) {
+                    localStorage.setItem("gm_brands", JSON.stringify(doc.data().list));
+                    if (currentUser) {
+                        loadAllBrands();
+                        populateFilterBrand();
+                    }
                 }
-            }, (err) => console.error("SO listener error:", err));
+            });
 
-            // 4. Counters Listener
-            onSnapshot(collection(db, 'artifacts', window.appId, 'public', 'data', 'gm_counters'), (snapshot) => {
-                const map = {};
-                snapshot.forEach(docSnap => map[docSnap.id] = docSnap.data().count || 0);
-                window.dbCounters = map;
-                if (window.currentUser) window.generateInvoiceNumber();
-            }, (err) => console.error("Counters listener error:", err));
+            // Sync Sales Officers
+            db.collection("sos").onSnapshot(function(snapshot) {
+                var sos = [];
+                snapshot.forEach(function(doc) {
+                    var data = doc.data();
+                    data.id = doc.id;
+                    sos.push(data);
+                });
+                localStorage.setItem("gm_sos", JSON.stringify(sos));
+                if (currentUser) {
+                    renderSoList();
+                    handleBrandChange();
+                }
+            });
+
+            // Sync Counters
+            db.collection("settings").doc("counters").onSnapshot(function(doc) {
+                if (doc.exists) {
+                    localStorage.setItem("gm_invoice_counters", JSON.stringify(doc.data()));
+                }
+            });
         }
 
-        // Local Storage Fallback
-        function initLocalStorageFallback() {
-            if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(window.dbBrands));
-            else window.dbBrands = JSON.parse(localStorage.getItem("gm_brands"));
+        function syncToFirebase(collection, docId, data) {
+            if (!isFirebaseConnected || !db) return;
+            db.collection(collection).doc(docId).set(data, { merge: true }).catch(function(e){ console.error(e); });
+        }
 
-            if (!localStorage.getItem("gm_sos")) localStorage.setItem("gm_sos", JSON.stringify(window.dbSos));
-            else window.dbSos = JSON.parse(localStorage.getItem("gm_sos"));
+        function removeFromFirebase(collection, docId) {
+            if (!isFirebaseConnected || !db) return;
+            db.collection(collection).doc(docId).delete().catch(function(e){ console.error(e); });
+        }
 
+        function initStorage() {
+            if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]));
+            if (!localStorage.getItem("gm_users")) {
+                localStorage.setItem("gm_users", JSON.stringify([
+                    { username: "admin", pass: "admin123", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
+                    { username: "dabur_user", pass: "user123", role: "user", brands: ["Dabur"] }
+                ]));
+            }
+            if (!localStorage.getItem("gm_sos")) {
+                localStorage.setItem("gm_sos", JSON.stringify([
+                    { id: 'so_1', brand: 'Dabur', name: 'SO - Rahim' },
+                    { id: 'so_2', brand: 'Dabur', name: 'SO - Karim' }
+                ]));
+            }
             if (!localStorage.getItem("gm_entries")) localStorage.setItem("gm_entries", JSON.stringify([]));
-            else window.dbEntries = JSON.parse(localStorage.getItem("gm_entries"));
-
             if (!localStorage.getItem("gm_invoice_counters")) localStorage.setItem("gm_invoice_counters", JSON.stringify({}));
-            else window.dbCounters = JSON.parse(localStorage.getItem("gm_invoice_counters"));
         }
+        initStorage();
+        initFirebase();
 
-        // Global Sync Helpers (write to Cloud or Local)
-        window.saveEntryCloud = async function(entry) {
-            if (isCloudConnected && db) {
-                await setDoc(getDocRef('gm_entries', entry.id), entry);
-            } else {
-                const idx = window.dbEntries.findIndex(e => e.id === entry.id);
-                if (idx >= 0) window.dbEntries[idx] = entry;
-                else window.dbEntries.push(entry);
-                localStorage.setItem("gm_entries", JSON.stringify(window.dbEntries));
-            }
-        };
-
-        window.deleteEntryCloud = async function(id) {
-            if (isCloudConnected && db) {
-                await deleteDoc(getDocRef('gm_entries', id));
-            } else {
-                window.dbEntries = window.dbEntries.filter(e => e.id !== id);
-                localStorage.setItem("gm_entries", JSON.stringify(window.dbEntries));
-            }
-        };
-
-        window.saveBrandCloud = async function(brandName) {
-            if (isCloudConnected && db) {
-                await setDoc(getDocRef('gm_brands', brandName), { name: brandName });
-            } else {
-                if (!window.dbBrands.includes(brandName)) window.dbBrands.push(brandName);
-                localStorage.setItem("gm_brands", JSON.stringify(window.dbBrands));
-            }
-        };
-
-        window.deleteBrandCloud = async function(brandName) {
-            if (isCloudConnected && db) {
-                await deleteDoc(getDocRef('gm_brands', brandName));
-            } else {
-                window.dbBrands = window.dbBrands.filter(b => b !== brandName);
-                localStorage.setItem("gm_brands", JSON.stringify(window.dbBrands));
-            }
-        };
-
-        window.saveSoCloud = async function(so) {
-            if (isCloudConnected && db) {
-                await setDoc(getDocRef('gm_sos', so.id), so);
-            } else {
-                window.dbSos.push(so);
-                localStorage.setItem("gm_sos", JSON.stringify(window.dbSos));
-            }
-        };
-
-        window.deleteSoCloud = async function(soId) {
-            if (isCloudConnected && db) {
-                await deleteDoc(getDocRef('gm_sos', soId));
-            } else {
-                window.dbSos = window.dbSos.filter(s => s.id !== soId);
-                localStorage.setItem("gm_sos", JSON.stringify(window.dbSos));
-            }
-        };
-
-        window.incrementInvoiceCounterCloud = async function(brand) {
-            const nextVal = (window.dbCounters[brand] || 0) + 1;
-            window.dbCounters[brand] = nextVal;
-            if (isCloudConnected && db) {
-                await setDoc(getDocRef('gm_counters', brand), { brand, count: nextVal });
-            } else {
-                localStorage.setItem("gm_invoice_counters", JSON.stringify(window.dbCounters));
-            }
-            return nextVal;
-        };
-
-        // Initialize Firebase on window load
-        window.addEventListener('DOMContentLoaded', () => {
-            initFirebase();
-        });
-    </script>
-
-    <!-- Main Logic Script -->
-    <script>
         var currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || null;
         var lastSavedEntry = null;
+
+        // BOTTOM NAV - RELIABLE
+        document.addEventListener('DOMContentLoaded', function() {
+            var bottomNav = document.getElementById('bottomNav');
+            if (bottomNav) {
+                bottomNav.addEventListener('click', function(e) {
+                    var btn = e.target.closest('[data-tab]');
+                    if (!btn) return;
+
+                    if (btn.getAttribute('data-hidden') === 'true' || btn.style.display === 'none') return;
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var tab = btn.getAttribute('data-tab');
+                    if (tab === 'logout') {
+                        handleLogout();
+                        return;
+                    }
+
+                    var items = bottomNav.querySelectorAll('.nav-item');
+                    for (var i = 0; i < items.length; i++) {
+                        items[i].classList.remove('active');
+                    }
+                    btn.classList.add('active');
+
+                    switchTab(tab);
+                });
+            }
+        });
 
         window.onload = function() {
             if (currentUser) showMainApp();
@@ -711,64 +556,21 @@
         function showToast(msg, type) {
             type = type || 'success';
             var t = document.getElementById('toast');
-            if (!t) return;
             t.textContent = msg;
             t.className = 'show ' + type;
             setTimeout(function() { t.className = ''; }, 2800);
         }
 
-        // Modal Helpers
-        function openFirebaseModal() {
-            var saved = localStorage.getItem("gm_firebase_config");
-            if (saved) {
-                try {
-                    var c = JSON.parse(saved);
-                    document.getElementById("cfgApiKey").value = c.apiKey || "";
-                    document.getElementById("cfgAuthDomain").value = c.authDomain || "";
-                    document.getElementById("cfgProjectId").value = c.projectId || "";
-                    document.getElementById("cfgStorageBucket").value = c.storageBucket || "";
-                    document.getElementById("cfgMessagingSenderId").value = c.messagingSenderId || "";
-                    document.getElementById("cfgAppId").value = c.appId || "";
-                } catch(e){}
-            }
-            document.getElementById("firebaseModal").classList.add("show");
-        }
-
-        function closeFirebaseModal() {
-            document.getElementById("firebaseModal").classList.remove("show");
-        }
-
-        function saveFirebaseConfig(e) {
-            e.preventDefault();
-            var cfg = {
-                apiKey: document.getElementById("cfgApiKey").value.trim(),
-                authDomain: document.getElementById("cfgAuthDomain").value.trim(),
-                projectId: document.getElementById("cfgProjectId").value.trim(),
-                storageBucket: document.getElementById("cfgStorageBucket").value.trim(),
-                messagingSenderId: document.getElementById("cfgMessagingSenderId").value.trim(),
-                appId: document.getElementById("cfgAppId").value.trim()
-            };
-            localStorage.setItem("gm_firebase_config", JSON.stringify(cfg));
-            showToast('Firebase কনফিগারেশন সেভ হয়েছে! পেজ রিলোড হচ্ছে...', 'info');
-            setTimeout(function() { location.reload(); }, 1000);
-        }
-
-        function clearFirebaseConfig() {
-            if (!confirm("ফায়ারবেস কনফিগারেশন রিমুভ করবেন?")) return;
-            localStorage.removeItem("gm_firebase_config");
-            showToast('কনফিগারেশন রিসেট হয়েছে!', 'info');
-            setTimeout(function() { location.reload(); }, 800);
-        }
-
         function resetDefaults() {
-            if (!confirm('সব লোকাল সেটিংস রিসেট করবেন? (ক্লাউড ডাটা থাকবে)')) return;
+            if (!confirm('সব ডেটা মুছে ডিফল্ট সেটিংস ফিরে আসবে। নিশ্চিত?')) return;
             localStorage.clear();
+            initStorage();
             showToast('ডিফল্ট সেটিংস রিস্টোর হয়েছে', 'success');
             setTimeout(function() { location.reload(); }, 800);
         }
 
         function quickLogin(username) {
-            var users = window.gmUsers || [];
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
             var found = users.find(function(x) { return x.username.toLowerCase() === username.toLowerCase(); });
             if (found) {
                 currentUser = found;
@@ -782,7 +584,7 @@
             e.preventDefault();
             var u = document.getElementById("loginUsername").value.trim().toLowerCase();
             var p = document.getElementById("loginPassword").value.trim();
-            var users = window.gmUsers || [];
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
             var found = users.find(function(x) { return x.username.toLowerCase() === u && x.pass === p; });
             if (found) {
                 currentUser = found;
@@ -808,6 +610,14 @@
             document.getElementById("currentUserDisplay").innerText = currentUser.username;
             document.getElementById("currentUserRole").innerText = currentUser.role;
             document.getElementById("date").valueAsDate = new Date();
+
+            // Admin Only Firebase Status Control
+            var adminDbArea = document.getElementById("adminDbStatusArea");
+            if (currentUser.role === 'admin') {
+                adminDbArea.classList.remove("hidden");
+            } else {
+                adminDbArea.classList.add("hidden");
+            }
 
             var brandsDesktopBtn = document.getElementById('tabBrandsBtn');
             var brandsMobileBtn = document.querySelector('#bottomNav [data-tab="brands"]');
@@ -843,10 +653,17 @@
             if (!brandSelect) return;
             var brand = brandSelect.value || "XXX";
             var code = getBrandCode(brand);
-            var counters = window.dbCounters || {};
+            var counters = JSON.parse(localStorage.getItem("gm_invoice_counters") || "{}");
             var nextNum = (counters[brand] || 0) + 1;
             var invInput = document.getElementById("invoiceNumber");
             if (invInput) invInput.value = code + "-" + String(nextNum).padStart(4, "0");
+        }
+
+        function incrementInvoiceCounter(brand) {
+            var counters = JSON.parse(localStorage.getItem("gm_invoice_counters") || "{}");
+            counters[brand] = (counters[brand] || 0) + 1;
+            localStorage.setItem("gm_invoice_counters", JSON.stringify(counters));
+            syncToFirebase("settings", "counters", counters);
         }
 
         function onBrandOrTypeChange() {
@@ -855,7 +672,11 @@
         }
 
         function loadAllBrands() {
-            var brands = window.dbBrands || ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"];
+            var brands = JSON.parse(localStorage.getItem("gm_brands"));
+            if (!brands || brands.length === 0) {
+                brands = ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"];
+                localStorage.setItem("gm_brands", JSON.stringify(brands));
+            }
             var allowed = [];
             if (currentUser && currentUser.role === 'admin') allowed = brands;
             else if (currentUser && currentUser.brands) {
@@ -933,11 +754,12 @@
                 }
             } catch (err) {
                 console.error("switchTab error:", err);
+                showToast('ট্যাব পরিবর্তনে সমস্যা হয়েছে', 'error');
             }
         }
 
         function populateFilterBrand() {
-            var brands = window.dbBrands || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var allowed = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
             var sel = document.getElementById("filterBrand");
             if (!sel) return;
@@ -950,16 +772,26 @@
             }
         }
 
-        async function handleAddBrand(e) {
+        function handleAddBrand(e) {
             e.preventDefault();
             var name = document.getElementById("newBrandInput").value.trim();
             if (!name) return;
-            var brands = window.dbBrands || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             if (brands.indexOf(name) !== -1) {
                 showToast('এই ব্র্যান্ড ইতিমধ্যে আছে', 'error');
                 return;
             }
-            await window.saveBrandCloud(name);
+            brands.push(name);
+            localStorage.setItem("gm_brands", JSON.stringify(brands));
+            syncToFirebase("settings", "brands", { list: brands });
+
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
+            for (var i = 0; i < users.length; i++) {
+                if (users[i].role === 'admin') users[i].brands = brands;
+            }
+            localStorage.setItem("gm_users", JSON.stringify(users));
+            currentUser.brands = brands;
+            localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
             document.getElementById("newBrandInput").value = "";
             loadAllBrands();
             populateFilterBrand();
@@ -968,7 +800,7 @@
         }
 
         function renderBrands() {
-            var brands = window.dbBrands || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var container = document.getElementById("brandsList");
             if (!container) return;
             container.innerHTML = "";
@@ -980,9 +812,16 @@
             }
         }
 
-        async function deleteBrand(name) {
+        function deleteBrand(name) {
             if (!confirm('"' + name + '" ব্র্যান্ড মুছে ফেলবেন?')) return;
-            await window.deleteBrandCloud(name);
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            brands = brands.filter(function(b) { return b !== name; });
+            localStorage.setItem("gm_brands", JSON.stringify(brands));
+            syncToFirebase("settings", "brands", { list: brands });
+
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            sos = sos.filter(function(s) { return s.brand !== name; });
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
             loadAllBrands();
             populateFilterBrand();
             renderBrands();
@@ -993,7 +832,7 @@
         function handleBrandChange() {
             var selectedBrand = document.getElementById("brandSelect") ? document.getElementById("brandSelect").value : "";
             if (!selectedBrand) return;
-            var sos = window.dbSos || [];
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             var brandSos = sos.filter(function(s) { return s.brand === selectedBrand; });
             var soSelect = document.getElementById("soSelect");
             if (!soSelect) return;
@@ -1013,7 +852,7 @@
             }
         }
 
-        async function handleCreateSO(e) {
+        function handleCreateSO(e) {
             e.preventDefault();
             var brand = document.getElementById("soBrandSelect").value;
             var name = document.getElementById("soNameInput").value.trim();
@@ -1021,8 +860,12 @@
                 showToast('ব্র্যান্ড ও SO নাম দিতে হবে', 'error');
                 return;
             }
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             var newSo = { id: 'so_' + Date.now(), brand: brand, name: name };
-            await window.saveSoCloud(newSo);
+            sos.push(newSo);
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
+            syncToFirebase("sos", newSo.id, newSo);
+
             document.getElementById("soNameInput").value = "";
             renderSoList();
             handleBrandChange();
@@ -1030,7 +873,7 @@
         }
 
         function renderSoList() {
-            var sos = window.dbSos || [];
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             var tbody = document.getElementById("soListTableBody");
             if (!tbody) return;
             tbody.innerHTML = "";
@@ -1045,9 +888,13 @@
             }
         }
 
-        async function deleteSO(id) {
+        function deleteSO(id) {
             if (!confirm('এই Sales Officer মুছে ফেলবেন?')) return;
-            await window.deleteSoCloud(id);
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            sos = sos.filter(function(s) { return s.id !== id; });
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
+            removeFromFirebase("sos", id);
+
             renderSoList();
             handleBrandChange();
             showToast('SO মুছে ফেলা হয়েছে', 'success');
@@ -1076,8 +923,9 @@
             }
         }
 
-        async function handleFormSubmit(e) {
+        function handleFormSubmit(e) {
             e.preventDefault();
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var type = document.getElementById("invoiceType").value;
             var editId = document.getElementById("editEntryId").value;
             var brand = document.getElementById("brandSelect").value;
@@ -1098,8 +946,7 @@
                 debit: type === 'Stock Out' ? parseFloat(document.getElementById("totalDebit").value || 0) : 0,
                 claim: type === 'Stock Out' ? parseFloat(document.getElementById("claimAmount").value || 0) : 0,
                 claimReceived: type === 'Claim Received' ? parseFloat(document.getElementById("claimReceivedAmount").value || 0) : 0,
-                details: type === 'Stock In' ? document.getElementById("detailsIn").value : (type === 'Stock Out' ? document.getElementById("outRemarks").value : document.getElementById("claimRecRemarks").value),
-                timestamp: Date.now()
+                details: type === 'Stock In' ? document.getElementById("detailsIn").value : (type === 'Stock Out' ? document.getElementById("outRemarks").value : document.getElementById("claimRecRemarks").value)
             };
 
             if (type === 'Stock In' && newEntry.credit <= 0) { showToast('Stock In Amount দিন', 'error'); return; }
@@ -1107,15 +954,20 @@
             if (type === 'Claim Received' && newEntry.claimReceived <= 0) { showToast('Claim Received Amount দিন', 'error'); return; }
 
             if (editId) {
-                await window.saveEntryCloud(newEntry);
+                for (var i = 0; i < entries.length; i++) {
+                    if (entries[i].id === editId) entries[i] = newEntry;
+                }
                 showToast('এন্ট্রি আপডেট হয়েছে', 'success');
             } else {
-                await window.incrementInvoiceCounterCloud(brand);
-                await window.saveEntryCloud(newEntry);
+                incrementInvoiceCounter(brand);
+                entries.push(newEntry);
                 showToast('এন্ট্রি সেভ হয়েছে', 'success');
                 lastSavedEntry = newEntry;
                 showInvoiceModal(newEntry);
             }
+            localStorage.setItem("gm_entries", JSON.stringify(entries));
+            syncToFirebase("entries", newEntry.id, newEntry);
+
             cancelEdit();
             renderDashboard();
         }
@@ -1164,8 +1016,9 @@
         }
 
         function editEntry(id) {
-            var entries = window.dbEntries || [];
-            var e = entries.find(function(item) { return item.id === id; });
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var e = null;
+            for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
             if (!e) return;
             document.getElementById("editEntryId").value = e.id;
             document.getElementById("date").value = e.date;
@@ -1212,16 +1065,20 @@
             onBrandOrTypeChange();
         }
 
-        async function deleteEntry(id) {
+        function deleteEntry(id) {
             if (!confirm('এই এন্ট্রি মুছে ফেলবেন?')) return;
-            await window.deleteEntryCloud(id);
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            entries = entries.filter(function(e) { return e.id !== id; });
+            localStorage.setItem("gm_entries", JSON.stringify(entries));
+            removeFromFirebase("entries", id);
+
             renderDashboard();
             showToast('এন্ট্রি মুছে ফেলা হয়েছে', 'success');
         }
 
         function renderDashboard() {
-            var entries = window.dbEntries || [];
-            var brands = window.dbBrands || [];
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
             var filtered = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
@@ -1261,14 +1118,12 @@
             document.getElementById("summaryRemainingStock").innerText = stockRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 });
 
             var tbody = document.getElementById("entriesTableBody");
-            if (!tbody) return;
             tbody.innerHTML = "";
-
             if (filtered.length === 0) {
                 document.getElementById("noEntriesMsg").classList.remove("hidden");
             } else {
                 document.getElementById("noEntriesMsg").classList.add("hidden");
-                filtered = filtered.slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+                filtered = filtered.slice().reverse();
                 for (var i = 0; i < filtered.length; i++) {
                     var e = filtered[i];
                     var claimDisplay = '-';
@@ -1295,22 +1150,23 @@
         }
 
         function showInvoiceModalFromId(id) {
-            var entries = window.dbEntries || [];
-            var e = entries.find(function(item) { return item.id === id; });
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var e = null;
+            for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
             if (e) { lastSavedEntry = e; showInvoiceModal(e); }
         }
 
         function exportFullBackup() {
-            var entries = window.dbEntries || [];
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             if (entries.length === 0) {
                 showToast('এক্সপোর্ট করার মতো ডেটা নেই', 'error');
                 return;
             }
             var csv = "Date,Brand,Invoice Type,Invoice Number,Sales Officer,Stock In,Stock Out,Claim,Claim Received,Net Stock Out,Details\n";
             var totalIn = 0, totalOut = 0, totalClaim = 0, totalClaimRec = 0;
-            var sorted = entries.slice().sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
-            for (var i = 0; i < sorted.length; i++) {
-                var e = sorted[i];
+            entries.sort(function(a, b) { return a.date.localeCompare(b.date); });
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
                 var netOut = (e.debit || 0) - (e.claim || 0);
                 totalIn += (e.credit || 0);
                 totalOut += (e.debit || 0);
@@ -1324,7 +1180,7 @@
             var netStockOut = totalOut - totalClaim;
             var stockRemaining = totalIn - totalOut;
             csv += "\n";
-            csv += ",,,,, " + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalClaimRec.toFixed(2) + "," + netStockOut.toFixed(2) + ",\n";
+            csv += ",,,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalClaimRec.toFixed(2) + "," + netStockOut.toFixed(2) + ",\n";
             csv += ",,,Stock Remaining,,,,,,," + stockRemaining.toFixed(2) + "\n";
             var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
             var link = document.createElement("a");
@@ -1334,15 +1190,15 @@
             showToast('Full Backup CSV ডাউনলোড হয়েছে', 'success');
         }
 
-        async function importBackup(event) {
+        function importBackup(event) {
             var file = event.target.files[0];
             if (!file) return;
-            if (!confirm('Import করলে ক্লাউড ও লোকাল সব ডেটা নতুন ডেটা দিয়ে সিঙ্ক হবে। চালিয়ে যেতে চান?')) {
+            if (!confirm('Import করলে বর্তমান সব লেনদেন মুছে নতুন ডেটা বসবে। চালিয়ে যেতে চান?')) {
                 event.target.value = "";
                 return;
             }
             var reader = new FileReader();
-            reader.onload = async function(e) {
+            reader.onload = function(e) {
                 try {
                     var text = e.target.result;
                     var lines = text.split(/\r?\n/);
@@ -1350,7 +1206,7 @@
                         showToast('ফাইল খালি বা ভুল ফরম্যাট', 'error');
                         return;
                     }
-                    var count = 0;
+                    var newEntries = [];
                     for (var i = 1; i < lines.length; i++) {
                         var line = lines[i].trim();
                         if (!line || line.indexOf("Stock Remaining") !== -1 || line.startsWith(",,,")) continue;
@@ -1366,21 +1222,25 @@
                         if (!date || !brand || !type) continue;
                         if (type !== "Stock In" && type !== "Stock Out" && type !== "Claim Received") continue;
                         
-                        var item = {
-                            id: 'entry_imp_' + Date.now() + '_' + i,
+                        var entryObj = {
+                            id: 'entry_' + Date.now() + '_' + i,
                             date: date, brand: brand, so: so, type: type,
                             invoiceNum: invNo || "IMP-" + i,
                             credit: type === "Stock In" ? stockIn : 0,
                             debit: type === "Stock Out" ? stockOut : 0,
                             claim: type === "Stock Out" ? claim : 0,
                             claimReceived: type === "Claim Received" ? claimRec : 0,
-                            details: details,
-                            timestamp: Date.now()
+                            details: details
                         };
-                        await window.saveEntryCloud(item);
-                        count++;
+                        newEntries.push(entryObj);
+                        syncToFirebase("entries", entryObj.id, entryObj);
                     }
-                    showToast(count + ' টি এন্ট্রি ইম্পোর্ট হয়েছে!', 'success');
+                    if (newEntries.length === 0) {
+                        showToast('কোনো বৈধ এন্ট্রি পাওয়া যায়নি', 'error');
+                        return;
+                    }
+                    localStorage.setItem("gm_entries", JSON.stringify(newEntries));
+                    showToast(newEntries.length + ' টি এন্ট্রি Import হয়েছে', 'success');
                     renderDashboard();
                     event.target.value = "";
                 } catch (err) {
@@ -1406,8 +1266,8 @@
         }
 
         function exportAnalyticsCSV() {
-            var entries = window.dbEntries || [];
-            var brands = window.dbBrands || [];
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
             var csv = "Brand,Stock In,Stock Out,Pending Claim,Stock Balance\n";
             for (var i = 0; i < allowedBrands.length; i++) {
@@ -1431,8 +1291,8 @@
         }
 
         function renderAnalytics() {
-            var entries = window.dbEntries || [];
-            var brands = window.dbBrands || [];
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
             var container = document.getElementById("analyticsContainer");
             if (!container) return;
@@ -1463,32 +1323,6 @@
                 container.appendChild(div);
             }
         }
-
-        // Reliable Mobile Bottom Nav Handler
-        document.addEventListener('DOMContentLoaded', function() {
-            var bottomNav = document.getElementById('bottomNav');
-            if (bottomNav) {
-                bottomNav.addEventListener('click', function(e) {
-                    var btn = e.target.closest('[data-tab]');
-                    if (!btn) return;
-                    if (btn.getAttribute('data-hidden') === 'true' || btn.style.display === 'none') return;
-
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    var tab = btn.getAttribute('data-tab');
-                    if (tab === 'logout') {
-                        handleLogout();
-                        return;
-                    }
-
-                    var items = bottomNav.querySelectorAll('.nav-item');
-                    for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
-                    btn.classList.add('active');
-
-                    switchTab(tab);
-                });
-            }
-        });
     </script>
 </body>
+</html>
