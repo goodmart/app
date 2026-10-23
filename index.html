@@ -369,11 +369,17 @@
             </div>
         </div>
 
-        <!-- USERS & ROLES MANAGER WITH EXTENDED INFO & BRAND SELECTION -->
+        <!-- USERS & ROLES MANAGER WITH USER EDIT OPTION -->
         <div id="tabUsers" class="space-y-4 hidden">
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
-                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">ইউজার ও রোল ম্যানেজমেন্ট</h2>
-                <form onsubmit="handleCreateUser(event)" class="space-y-4 mb-6 bg-blue-50 p-4 rounded-xl border border-blue-200">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="text-base font-bold text-gray-800">ইউজার ও রোল ম্যানেজমেন্ট</h2>
+                    <span id="userEditModeBadge" class="hidden text-xs bg-yellow-100 text-yellow-800 px-2.5 py-1 rounded-full font-bold">Editing User...</span>
+                </div>
+                
+                <form id="userForm" onsubmit="handleUserSubmit(event)" class="space-y-4 mb-6 bg-blue-50 p-4 rounded-xl border border-blue-200">
+                    <input type="hidden" id="editingUsername" value="">
+                    
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Full Name</label>
@@ -409,8 +415,9 @@
                         <label class="block text-xs font-bold text-gray-700 mb-1">Assign Allowed Brands</label>
                         <div id="userBrandCheckboxes" class="flex flex-wrap gap-3 bg-white p-3 border rounded-xl"></div>
                     </div>
-                    <div class="pt-1">
-                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow">Create User</button>
+                    <div class="flex gap-2 pt-1">
+                        <button type="submit" id="userSubmitBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow">Create User</button>
+                        <button type="button" id="cancelUserEditBtn" onclick="cancelUserEdit()" class="hidden bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2.5 px-4 rounded-xl text-sm">Cancel</button>
                     </div>
                 </form>
 
@@ -878,22 +885,25 @@
             }
         }
 
-        // USER MANAGEMENT FUNCTIONS
-        function renderUserBrandCheckboxes() {
+        // USER MANAGEMENT FUNCTIONS WITH FULL EDIT SUPPORT
+        function renderUserBrandCheckboxes(selectedBrands) {
+            selectedBrands = selectedBrands || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var container = document.getElementById("userBrandCheckboxes");
             if (!container) return;
             container.innerHTML = "";
             brands.forEach(b => {
+                var isChecked = selectedBrands.length === 0 ? true : selectedBrands.includes(b);
                 var lbl = document.createElement("label");
                 lbl.className = "inline-flex items-center text-xs font-semibold cursor-pointer mr-3";
-                lbl.innerHTML = `<input type="checkbox" value="${b}" class="user-brand-chk rounded text-blue-600 mr-1.5" checked> ${b}`;
+                lbl.innerHTML = `<input type="checkbox" value="${b}" class="user-brand-chk rounded text-blue-600 mr-1.5" ${isChecked ? 'checked' : ''}> ${b}`;
                 container.appendChild(lbl);
             });
         }
 
-        function handleCreateUser(e) {
+        function handleUserSubmit(e) {
             e.preventDefault();
+            var editingUsername = document.getElementById("editingUsername").value.trim();
             var fullName = document.getElementById("newFullName").value.trim();
             var phone = document.getElementById("newPhone").value.trim();
             var designation = document.getElementById("newDesignation").value.trim();
@@ -915,33 +925,94 @@
             }
 
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
-            var exists = users.find(u => u.username.toLowerCase() === username);
-            if (exists) {
-                showToast('এই ইউজারনেম ইতিমধ্যে বিদ্যমান', 'error');
-                return;
+
+            if (editingUsername) {
+                // UPDATE USER
+                var userIndex = users.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
+                if (userIndex !== -1) {
+                    var updatedUser = {
+                        fullName: fullName,
+                        phone: phone,
+                        designation: designation,
+                        username: editingUsername, // preserve original username
+                        pass: pass,
+                        role: role,
+                        brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
+                    };
+                    users[userIndex] = updatedUser;
+                    localStorage.setItem("gm_users", JSON.stringify(users));
+                    syncToFirebase("users", editingUsername, updatedUser);
+
+                    if (currentUser.username === editingUsername) {
+                        currentUser = updatedUser;
+                        localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+                    }
+                    showToast('ইউজার আপডেট করা হয়েছে', 'success');
+                }
+            } else {
+                // CREATE USER
+                var exists = users.find(u => u.username.toLowerCase() === username);
+                if (exists) {
+                    showToast('এই ইউজারনেম ইতিমধ্যে বিদ্যমান', 'error');
+                    return;
+                }
+
+                var newUser = {
+                    fullName: fullName,
+                    phone: phone,
+                    designation: designation,
+                    username: username,
+                    pass: pass,
+                    role: role,
+                    brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
+                };
+
+                users.push(newUser);
+                localStorage.setItem("gm_users", JSON.stringify(users));
+                syncToFirebase("users", username, newUser);
+                showToast('নতুন ইউজার সফলভাবে তৈরি হয়েছে', 'success');
             }
 
-            var newUser = {
-                fullName: fullName,
-                phone: phone,
-                designation: designation,
-                username: username,
-                pass: pass,
-                role: role,
-                brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
-            };
+            cancelUserEdit();
+            renderUserList();
+        }
 
-            users.push(newUser);
-            localStorage.setItem("gm_users", JSON.stringify(users));
-            syncToFirebase("users", username, newUser);
+        function editUser(username) {
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
+            var u = users.find(x => x.username.toLowerCase() === username.toLowerCase());
+            if (!u) return;
 
+            document.getElementById("editingUsername").value = u.username;
+            document.getElementById("newFullName").value = u.fullName || "";
+            document.getElementById("newPhone").value = u.phone || "";
+            document.getElementById("newDesignation").value = u.designation || "";
+            document.getElementById("newUsername").value = u.username;
+            document.getElementById("newUsername").disabled = true; // lock username edit
+            document.getElementById("newUserPass").value = u.pass || "";
+            document.getElementById("newUserRole").value = u.role || "user";
+
+            renderUserBrandCheckboxes(u.brands || []);
+
+            document.getElementById("userEditModeBadge").classList.remove("hidden");
+            document.getElementById("userSubmitBtn").textContent = "Update User";
+            document.getElementById("cancelUserEditBtn").classList.remove("hidden");
+            document.getElementById("userForm").scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelUserEdit() {
+            document.getElementById("editingUsername").value = "";
             document.getElementById("newFullName").value = "";
             document.getElementById("newPhone").value = "";
             document.getElementById("newDesignation").value = "";
             document.getElementById("newUsername").value = "";
+            document.getElementById("newUsername").disabled = false;
             document.getElementById("newUserPass").value = "";
-            renderUserList();
-            showToast('নতুন ইউজার সফলভাবে তৈরি হয়েছে', 'success');
+            document.getElementById("newUserRole").value = "user";
+
+            document.getElementById("userEditModeBadge").classList.add("hidden");
+            document.getElementById("userSubmitBtn").textContent = "Create User";
+            document.getElementById("cancelUserEditBtn").classList.add("hidden");
+            renderUserBrandCheckboxes();
         }
 
         function renderUserList() {
@@ -956,7 +1027,9 @@
             for (var i = 0; i < users.length; i++) {
                 var u = users[i];
                 var roleBadge = u.role === 'admin' ? '<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-bold">Admin</span>' : '<span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">User</span>';
-                var delBtn = u.username !== 'admin' ? '<button onclick="deleteUser(\'' + u.username + '\')" class="text-red-500 font-bold text-xs">Delete</button>' : '<span class="text-gray-300 text-xs">Protected</span>';
+                var delBtn = u.username !== 'admin' ? '<button onclick="deleteUser(\'' + u.username + '\')" class="text-red-500 font-bold text-xs">Del</button>' : '<span class="text-gray-300 text-xs">Protected</span>';
+                var editBtn = '<button onclick="editUser(\'' + u.username + '\')" class="text-blue-600 font-bold text-xs mr-2">Edit</button>';
+                
                 var brandDisplay = u.role === 'admin' ? 'All Brands' : (u.brands ? u.brands.join(", ") : "None");
 
                 var tr = document.createElement("tr");
@@ -966,7 +1039,7 @@
                                '<td class="py-3 px-3 text-gray-600">' + (u.designation || '-') + '</td>' +
                                '<td class="py-3 px-3">' + roleBadge + '</td>' +
                                '<td class="py-3 px-3 font-semibold text-xs text-amber-700">' + brandDisplay + '</td>' +
-                               '<td class="py-3 px-3 text-center">' + delBtn + '</td>';
+                               '<td class="py-3 px-3 text-center">' + editBtn + delBtn + '</td>';
                 tbody.appendChild(tr);
             }
         }
@@ -1541,3 +1614,4 @@
     </script>
 </body>
 </html>
+
