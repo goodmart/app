@@ -301,6 +301,7 @@
                 </div>
             </div>
 
+            <!-- Recent Transactions Table -->
             <div class="bg-white p-4 rounded-2xl shadow-md overflow-hidden">
                 <h3 class="font-bold text-sm text-gray-800 mb-3">Recent Transactions</h3>
                 <div class="overflow-x-auto">
@@ -322,6 +323,28 @@
                     </table>
                 </div>
                 <p id="noEntriesMsg" class="text-center text-gray-400 text-sm py-6 hidden">কোনো লেনদেন পাওয়া যায়নি</p>
+            </div>
+
+            <!-- USER PANEL SUMMARY TABLE (Only visible to 'user' role) -->
+            <div id="userPanelSummaryArea" class="bg-white p-4 rounded-2xl shadow-md overflow-hidden hidden">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h3 class="font-bold text-sm text-gray-800">Inventory Summary</h3>
+                    <button onclick="exportSummaryCSV()" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2 px-3 rounded-xl shadow">↓ Export Summary CSV</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs sm:text-sm">
+                        <thead>
+                            <tr class="bg-blue-50 text-blue-900 uppercase text-[10px] font-bold">
+                                <th class="py-2.5 px-3 text-left">Brand</th>
+                                <th class="py-2.5 px-3 text-right">Stock In (TK)</th>
+                                <th class="py-2.5 px-3 text-right">Stock Out (TK)</th>
+                                <th class="py-2.5 px-3 text-right">Pending Claim (TK)</th>
+                                <th class="py-2.5 px-3 text-right">Stock Remaining (TK)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userSummaryTableBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -709,6 +732,7 @@
             var usersMobileBtn = document.getElementById("navUsersBtn");
             var brandsDesktopBtn = document.getElementById('tabBrandsBtn');
             var brandsMobileBtn = document.querySelector('#bottomNav [data-tab="brands"]');
+            var userPanelSummaryArea = document.getElementById("userPanelSummaryArea");
 
             if (currentUser.role === 'admin') {
                 adminDbArea.classList.remove("hidden");
@@ -722,6 +746,7 @@
                     brandsMobileBtn.style.display = '';
                     brandsMobileBtn.removeAttribute('data-hidden');
                 }
+                if (userPanelSummaryArea) userPanelSummaryArea.classList.add("hidden");
             } else {
                 adminDbArea.classList.add("hidden");
                 if (usersDesktopBtn) usersDesktopBtn.classList.add("hidden");
@@ -734,6 +759,8 @@
                     brandsMobileBtn.style.display = 'none';
                     brandsMobileBtn.setAttribute('data-hidden', 'true');
                 }
+                // Show Summary Area only for User / Staff Panel
+                if (userPanelSummaryArea) userPanelSummaryArea.classList.remove("hidden");
             }
 
             loadAllBrands();
@@ -770,7 +797,7 @@
 
         function onBrandOrTypeChange() {
             handleTypeChange();
-            handleBrandChange(); // Ensure Sales Officer list updates instantly upon brand change
+            handleBrandChange();
             generateInvoiceNumber();
         }
 
@@ -1120,20 +1147,18 @@
             showToast('ব্র্যান্ড মুছে ফেলা হয়েছে', 'success');
         }
 
-        // CORRECTED BRAND CHANGE FUNCTION TO INSTANTLY UPDATE SALES OFFICERS
         function handleBrandChange() {
             var brandSelect = document.getElementById("brandSelect");
             var selectedBrand = brandSelect ? brandSelect.value : "";
             var soSelect = document.getElementById("soSelect");
             if (!soSelect) return;
             
-            soSelect.innerHTML = ""; // Clear existing options completely
+            soSelect.innerHTML = "";
 
             if (!selectedBrand) return;
 
             var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             
-            // Strict exact brand filtering (case-insensitive check)
             var brandSos = sos.filter(function(s) { 
                 return s.brand && s.brand.trim().toLowerCase() === selectedBrand.trim().toLowerCase(); 
             });
@@ -1424,9 +1449,9 @@
                 document.getElementById("noEntriesMsg").classList.remove("hidden");
             } else {
                 document.getElementById("noEntriesMsg").classList.add("hidden");
-                filtered = filtered.slice().reverse();
-                for (var i = 0; i < filtered.length; i++) {
-                    var e = filtered[i];
+                var displayList = filtered.slice().reverse();
+                for (var i = 0; i < displayList.length; i++) {
+                    var e = displayList[i];
                     var claimDisplay = '-';
                     if (e.claim) claimDisplay = e.claim.toFixed(2);
                     else if (e.claimReceived) claimDisplay = '+' + e.claimReceived.toFixed(2);
@@ -1448,6 +1473,106 @@
                     tbody.appendChild(tr);
                 }
             }
+
+            // Render User Panel Bottom Summary Table if currentUser is non-admin user
+            if (currentUser && currentUser.role !== 'admin') {
+                renderUserPanelSummary(filtered, allowedBrands);
+            }
+        }
+
+        // RENDER SUMMARY TABLE FOR USER PANEL
+        function renderUserPanelSummary(filteredEntries, allowedBrands) {
+            var tbody = document.getElementById("userSummaryTableBody");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+
+            var brandTotals = {};
+            for (var i = 0; i < allowedBrands.length; i++) {
+                brandTotals[allowedBrands[i]] = { in: 0, out: 0, claimSub: 0, claimRec: 0 };
+            }
+
+            for (var j = 0; j < filteredEntries.length; j++) {
+                var e = filteredEntries[j];
+                if (brandTotals[e.brand]) {
+                    brandTotals[e.brand].in += (e.credit || 0);
+                    brandTotals[e.brand].out += (e.debit || 0);
+                    brandTotals[e.brand].claimSub += (e.claim || 0);
+                    brandTotals[e.brand].claimRec += (e.claimReceived || 0);
+                }
+            }
+
+            var grandIn = 0, grandOut = 0, grandPendingClaim = 0, grandRemaining = 0;
+
+            for (var brand in brandTotals) {
+                var data = brandTotals[brand];
+                var pendingClaim = data.claimSub - data.claimRec;
+                var remaining = data.in - data.out;
+
+                grandIn += data.in;
+                grandOut += data.out;
+                grandPendingClaim += pendingClaim;
+                grandRemaining += remaining;
+
+                var tr = document.createElement("tr");
+                tr.innerHTML = '<td class="py-2.5 px-3 font-bold text-gray-800">' + brand + '</td>' +
+                    '<td class="py-2.5 px-3 text-right font-semibold text-blue-700">' + data.in.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                    '<td class="py-2.5 px-3 text-right font-semibold text-indigo-700">' + data.out.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                    '<td class="py-2.5 px-3 text-right font-semibold text-amber-700">' + pendingClaim.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                    '<td class="py-2.5 px-3 text-right font-bold text-emerald-700">' + remaining.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>';
+                tbody.appendChild(tr);
+            }
+
+            // Total Row
+            var totalTr = document.createElement("tr");
+            totalTr.className = "bg-gray-100 font-bold border-t-2 border-gray-300";
+            totalTr.innerHTML = '<td class="py-2.5 px-3 text-gray-900">Total</td>' +
+                '<td class="py-2.5 px-3 text-right text-blue-800">' + grandIn.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                '<td class="py-2.5 px-3 text-right text-indigo-800">' + grandOut.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                '<td class="py-2.5 px-3 text-right text-amber-800">' + grandPendingClaim.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                '<td class="py-2.5 px-3 text-right text-emerald-800">' + grandRemaining.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>';
+            tbody.appendChild(totalTr);
+        }
+
+        // EXPORT SUMMARY CSV FOR USER PANEL
+        function exportSummaryCSV() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            
+            var csv = "Brand,Stock In (TK),Stock Out (TK),Pending Claim (TK),Stock Remaining (TK)\n";
+            var grandIn = 0, grandOut = 0, grandPendingClaim = 0, grandRemaining = 0;
+
+            for (var i = 0; i < allowedBrands.length; i++) {
+                var b = allowedBrands[i];
+                var bEntries = entries.filter(function(e) { return e.brand === b; });
+                var bIn = 0, bOut = 0, bClaimSub = 0, bClaimRec = 0;
+
+                for (var j = 0; j < bEntries.length; j++) {
+                    bIn += (bEntries[j].credit || 0);
+                    bOut += (bEntries[j].debit || 0);
+                    bClaimSub += (bEntries[j].claim || 0);
+                    bClaimRec += (bEntries[j].claimReceived || 0);
+                }
+
+                var pendingClaim = bClaimSub - bClaimRec;
+                var remaining = bIn - bOut;
+
+                grandIn += bIn;
+                grandOut += bOut;
+                grandPendingClaim += pendingClaim;
+                grandRemaining += remaining;
+
+                csv += b + "," + bIn.toFixed(2) + "," + bOut.toFixed(2) + "," + pendingClaim.toFixed(2) + "," + remaining.toFixed(2) + "\n";
+            }
+
+            csv += "Total," + grandIn.toFixed(2) + "," + grandOut.toFixed(2) + "," + grandPendingClaim.toFixed(2) + "," + grandRemaining.toFixed(2) + "\n";
+
+            var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "GoodMart_Inventory_Summary_" + new Date().toISOString().slice(0,10) + ".csv";
+            link.click();
+            showToast('Inventory Summary CSV ডাউনলোড হয়েছে', 'success');
         }
 
         function showInvoiceModalFromId(id) {
