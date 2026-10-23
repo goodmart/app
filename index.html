@@ -770,6 +770,7 @@
 
         function onBrandOrTypeChange() {
             handleTypeChange();
+            handleBrandChange(); // Ensure Sales Officer list updates instantly upon brand change
             generateInvoiceNumber();
         }
 
@@ -790,12 +791,16 @@
 
             var brandSelect = document.getElementById("brandSelect");
             if (brandSelect) {
+                var currentSelectedBrand = brandSelect.value;
                 brandSelect.innerHTML = "";
                 for (var i = 0; i < allowed.length; i++) {
                     var opt = document.createElement("option");
                     opt.value = allowed[i];
                     opt.textContent = allowed[i];
                     brandSelect.appendChild(opt);
+                }
+                if (currentSelectedBrand && allowed.indexOf(currentSelectedBrand) !== -1) {
+                    brandSelect.value = currentSelectedBrand;
                 }
             }
             var soBrandSelect = document.getElementById("soBrandSelect");
@@ -927,14 +932,13 @@
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
 
             if (editingUsername) {
-                // UPDATE USER
                 var userIndex = users.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
                 if (userIndex !== -1) {
                     var updatedUser = {
                         fullName: fullName,
                         phone: phone,
                         designation: designation,
-                        username: editingUsername, // preserve original username
+                        username: editingUsername,
                         pass: pass,
                         role: role,
                         brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
@@ -950,7 +954,6 @@
                     showToast('ইউজার আপডেট করা হয়েছে', 'success');
                 }
             } else {
-                // CREATE USER
                 var exists = users.find(u => u.username.toLowerCase() === username);
                 if (exists) {
                     showToast('এই ইউজারনেম ইতিমধ্যে বিদ্যমান', 'error');
@@ -987,7 +990,7 @@
             document.getElementById("newPhone").value = u.phone || "";
             document.getElementById("newDesignation").value = u.designation || "";
             document.getElementById("newUsername").value = u.username;
-            document.getElementById("newUsername").disabled = true; // lock username edit
+            document.getElementById("newUsername").disabled = true;
             document.getElementById("newUserPass").value = u.pass || "";
             document.getElementById("newUserRole").value = u.role || "user";
 
@@ -1117,9 +1120,10 @@
             showToast('ব্র্যান্ড মুছে ফেলা হয়েছে', 'success');
         }
 
-        // EXACT BRAND MATCH FIX FOR SALES OFFICERS DROPDOWN
+        // CORRECTED BRAND CHANGE FUNCTION TO INSTANTLY UPDATE SALES OFFICERS
         function handleBrandChange() {
-            var selectedBrand = document.getElementById("brandSelect") ? document.getElementById("brandSelect").value : "";
+            var brandSelect = document.getElementById("brandSelect");
+            var selectedBrand = brandSelect ? brandSelect.value : "";
             var soSelect = document.getElementById("soSelect");
             if (!soSelect) return;
             
@@ -1129,7 +1133,7 @@
 
             var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             
-            // Strict exact brand filtering
+            // Strict exact brand filtering (case-insensitive check)
             var brandSos = sos.filter(function(s) { 
                 return s.brand && s.brand.trim().toLowerCase() === selectedBrand.trim().toLowerCase(); 
             });
