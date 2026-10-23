@@ -6,6 +6,8 @@
     <title>Good Mart Enterprise - Distribution Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root { --safe-bottom: env(safe-area-inset-bottom); }
         body { -webkit-tap-highlight-color: transparent; }
@@ -144,6 +146,8 @@
                 </div>
                 <p id="loginError" class="text-red-500 text-xs hidden font-bold text-center">ভুল ইউজারনেম বা পাসওয়ার্ড!</p>
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Login</button>
+                <button type="button" onclick="connectDriveAndRestore()" class="w-full bg-green-700 hover:bg-green-800 text-white font-bold py-3 px-4 rounded-xl text-sm">☁ Google Drive থেকে Restore / Sync</button>
+                <p class="text-[11px] text-gray-500 text-center">নতুন ফোনে আগে এই বাটনে চাপ দিয়ে Google Drive অনুমতি দিন।</p>
             </form>
             <div class="mt-5 text-center">
                 <button onclick="resetDefaults()" class="text-xs text-red-500 hover:underline font-semibold">Reset App Data</button>
@@ -282,7 +286,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button onclick="exportFullBackup()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded-xl">↓ Full Backup (CSV)</button>
-                    <button onclick="window.goodMartFirebase && window.goodMartFirebase.openPanel()" id="firebaseSyncBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl">☁ Firebase Sync / Backup</button>
+                    <button onclick="backupToGoogleDrive()" id="driveBackupBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl">☁ Backup to Google Drive</button>
                     <label class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-xl cursor-pointer">
                         ↑ Import Backup
                         <input type="file" id="importFile" accept=".csv" class="hidden" onchange="importBackup(event)">
@@ -399,18 +403,524 @@
     </div>
 
     <script>
-        // Firebase cloud integration is loaded in the module at the end of this file.
-        // Legacy button compatibility: old Google Drive backup is intentionally disabled.
+        // ========== GOOGLE DRIVE CONFIG / SAFE AUTO SYNC ==========
+        const GOOGLE_CLIENT_ID = "19787863112-dugnk8d8tnt84c4et94bnq9m0n1j4a8n.apps.googleusercontent.com";
+        const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+        const DRIVE_BACKUP_PREFIX = "GoodMart_AutoBackup_";
+        const GM_DATA_KEYS = ["gm_brands", "gm_users", "gm_sos", "gm_entries", "gm_invoice_counters"];
+        let googleAccessToken = null;
+        let tokenClient = null;
+        let driveAction = "restore";
+        let backupSuspend = false;
+        let backupTimer = null;
+        let autoAuthAttempted = false;
+        let autoUploadInProgress = false;
+        let lastUploadedSignature = null;
+        let lastRestoreFileId = null;
+        let driveClientInitTries = 0;
+
+        function initStorage() {
+            if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]));
+            if (!localStorage.getItem("gm_users")) {
+                localStorage.setItem("gm_users", JSON.stringify([
+                    { username: "admin", pass: "admin123", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
+                    { username: "dabur_user", pass: "user123", role: "user", brands: ["Dabur"] }
+                ]));
+            }
+            if (!localStorage.getItem("gm_sos")) {
+                localStorage.setItem("gm_sos", JSON.stringify([
+                    { id: 'so_1', brand: 'Dabur', name: 'SO - Rahim' },
+                    { id: 'so_2', brand: 'Dabur', name: 'SO - Karim' }
+                ]));
+            }
+            if (!localStorage.getItem("gm_entries")) localStorage.setItem("gm_entries", JSON.stringify([]));
+            if (!localStorage.getItem("gm_invoice_counters")) localStorage.setItem("gm_invoice_counters", JSON.stringify({}));
+        }
+        initStorage();
+
+        var currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || null;
+        window.currentUser = currentUser;
+        var lastSavedEntry = null;
+
+        // Isolate operational data in local storage by legacy app username.
+        (function installUserScopedStorage() {
+            var scopedKeys = ["gm_brands", "gm_sos", "gm_entries", "gm_invoice_counters"];
+            var rawGet = Storage.prototype.getItem, rawSet = Storage.prototype.setItem, rawRemove = Storage.prototype.removeItem;
+            function username() {
+                try { var u = window.currentUser || JSON.parse(rawGet.call(localStorage, "gm_logged_user") || "null");
+                    return u && u.username ? String(u.username).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_") : null;
+                } catch (_) { return null; }
+            }
+            function mapKey(store, key) {
+                if (store !== localStorage || !scopedKeys.includes(String(key))) return key;
+                var u = username(); return u ? "gm_user_" + u + "_" + key : key;
+            }
+            var u = username();
+            if (u) scopedKeys.forEach(function(key) {
+                var target = "gm_user_" + u + "_" + key;
+                if (rawGet.call(localStorage, target) === null) {
+                    var old = rawGet.call(localStorage, key); if (old !== null) rawSet.call(localStorage, target, old);
+                }
+            });
+            Storage.prototype.getItem = function(key) { return rawGet.call(this, mapKey(this, key)); };
+            Storage.prototype.setItem = function(key, value) { return rawSet.call(this, mapKey(this, key), value); };
+            Storage.prototype.removeItem = function(key) { return rawRemove.call(this, mapKey(this, key)); };
+        })();
+
+        // ========== BOTTOM NAV ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            var bottomNav = document.getElementById('bottomNav');
+            if (bottomNav) {
+                bottomNav.addEventListener('click', function(e) {
+                    var btn = e.target.closest('[data-tab]');
+                    if (!btn) return;
+                    if (btn.getAttribute('data-hidden') === 'true' || btn.style.display === 'none') return;
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var tab = btn.getAttribute('data-tab');
+                    if (tab === 'logout') {
+                        handleLogout();
+                        return;
+                    }
+
+                    var items = bottomNav.querySelectorAll('.nav-item');
+                    for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+                    btn.classList.add('active');
+                    switchTab(tab);
+                });
+            }
+
+        });
+
+        window.onload = function() {
+            if (currentUser) showMainApp();
+        };
+
+        function showToast(msg, type) {
+            type = type || 'success';
+            var t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'show ' + type;
+            setTimeout(function() { t.className = ''; }, 3000);
+        }
+
+        // ========== GOOGLE DRIVE AUTO BACKUP + RESTORE ==========
+        function initGoogleTokenClient() {
+            if (tokenClient) return;
+            if (window.google && google.accounts && google.accounts.oauth2) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: DRIVE_SCOPE,
+                    callback: function(tokenResponse) {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            googleAccessToken = tokenResponse.access_token;
+                            var action = driveAction || "restore";
+                            driveAction = "restore";
+                            if (action === "restore") {
+                                checkAndRestoreFromDrive();
+                            } else if (action === "autoBackup") {
+                                uploadAutoBackup(false);
+                            } else if (action === "manualBackup") {
+                                uploadBackupToDrive(); // Preserve the existing CSV backup behavior.
+                                uploadAutoBackup(true); // Also save a complete, restorable JSON snapshot.
+                            }
+                        } else {
+                            showToast('Google অনুমতি পাওয়া যায়নি। Google Drive Restore / Sync বাটনে চাপ দিন।', 'error');
+                        }
+                    },
+                    error_callback: function(error) {
+                        console.warn('Google OAuth popup error:', error);
+                        showToast('Google অনুমতির popup খোলা যায়নি। Restore / Sync বাটনে চাপ দিন।', 'error');
+                    }
+                });
+            } else if (driveClientInitTries++ < 20) {
+                setTimeout(initGoogleTokenClient, 500);
+            }
+        }
+
+        function connectDriveAndRestore() {
+            initGoogleTokenClient();
+            if (!tokenClient) {
+                showToast('Google API লোড হচ্ছে। কয়েক সেকেন্ড পর আবার চেষ্টা করুন।', 'error');
+                return;
+            }
+            driveAction = 'restore';
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+
+        function autoCheckDriveOnOpen() {
+            initGoogleTokenClient();
+            if (!tokenClient || autoAuthAttempted) return;
+            autoAuthAttempted = true;
+            driveAction = 'restore';
+            try {
+                tokenClient.requestAccessToken({ prompt: '' });
+            } catch (err) {
+                console.warn('Automatic Drive check needs user interaction:', err);
+            }
+        }
+
+        function getAppDataSnapshot() {
+            var data = {};
+            GM_DATA_KEYS.forEach(function(key) {
+                var raw = localStorage.getItem(key);
+                data[key] = raw === null ? null : JSON.parse(raw);
+            });
+            return data;
+        }
+
+        function makeSnapshotSignature(data) {
+            return JSON.stringify(data);
+        }
+
+        function getFullBackupObject() {
+            return {
+                app: 'Good Mart Enterprise',
+                format: 'goodmart-full-backup',
+                schemaVersion: 1,
+                updatedAt: new Date().toISOString(),
+                data: getAppDataSnapshot()
+            };
+        }
+
+        function isLocalDataPristine() {
+            var d = getAppDataSnapshot();
+            var defaultBrands = ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"];
+            var defaultUsers = [
+                { username: "admin", pass: "admin123", role: "admin", brands: defaultBrands },
+                { username: "dabur_user", pass: "user123", role: "user", brands: ["Dabur"] }
+            ];
+            var defaultSos = [
+                { id: 'so_1', brand: 'Dabur', name: 'SO - Rahim' },
+                { id: 'so_2', brand: 'Dabur', name: 'SO - Karim' }
+            ];
+            return (d.gm_entries || []).length === 0 &&
+                JSON.stringify(d.gm_brands) === JSON.stringify(defaultBrands) &&
+                JSON.stringify(d.gm_users) === JSON.stringify(defaultUsers) &&
+                JSON.stringify(d.gm_sos) === JSON.stringify(defaultSos) &&
+                Object.keys(d.gm_invoice_counters || {}).length === 0;
+        }
+
+        function showLocalRestoreSafetyCopy(snapshot) {
+            var key = 'gm_pre_restore_backup_' + new Date().toISOString().replace(/[:.]/g, '-');
+            try {
+                localStorage.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), data: snapshot }));
+                return true;
+            } catch (err) {
+                console.error('Could not preserve local data before restore:', err);
+                showToast('স্থানীয় ডেটার নিরাপদ কপি তৈরি হয়নি—Restore বাতিল করা হয়েছে।', 'error');
+                return false;
+            }
+        }
+
+        function applyFullBackup(backup) {
+            if (!backup || backup.format !== 'goodmart-full-backup' || backup.schemaVersion !== 1 || !backup.data) {
+                throw new Error('Unsupported or invalid Good Mart backup file');
+            }
+            GM_DATA_KEYS.forEach(function(key) {
+                if (!Object.prototype.hasOwnProperty.call(backup.data, key)) {
+                    throw new Error('Backup is missing ' + key);
+                }
+            });
+            var oldSnapshot = getAppDataSnapshot();
+            if (!showLocalRestoreSafetyCopy(oldSnapshot)) return false;
+            backupSuspend = true;
+            try {
+                GM_DATA_KEYS.forEach(function(key) {
+                    localStorage.setItem(key, JSON.stringify(backup.data[key]));
+                });
+            } catch (err) {
+                // Roll back to the previous local state if any write fails.
+                GM_DATA_KEYS.forEach(function(key) {
+                    try { localStorage.setItem(key, JSON.stringify(oldSnapshot[key])); } catch (ignored) {}
+                });
+                throw err;
+            } finally {
+                backupSuspend = false;
+            }
+            lastRestoreFileId = backup.fileId || null;
+            lastUploadedSignature = makeSnapshotSignature(backup.data);
+            return true;
+        }
+
+        function checkAndRestoreFromDrive() {
+            if (!googleAccessToken) return;
+            showToast('Google Drive-এর সর্বশেষ ব্যাকআপ খোঁজা হচ্ছে...', 'success');
+            // Include old CSV backups too; use them only as a legacy fallback when no full JSON snapshot exists.
+            var q = "name contains 'GoodMart_' and trashed = false";
+            var url = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) +
+                '&orderBy=createdTime%20desc&pageSize=10&fields=files(id,name,mimeType,createdTime,modifiedTime,size)';
+            fetch(url, { headers: { 'Authorization': 'Bearer ' + googleAccessToken } })
+                .then(function(res) {
+                    if (!res.ok) throw new Error('Drive list failed: ' + res.status);
+                    return res.json();
+                })
+                .then(function(result) {
+                    var files = (result.files || []).filter(function(f) { return f.name && f.name.indexOf('GoodMart_') === 0; });
+                    var fullFiles = files.filter(function(f) { return f.name.indexOf(DRIVE_BACKUP_PREFIX) === 0 && /\.json$/i.test(f.name); });
+                    if (!fullFiles.length) {
+                        var oldCsvFiles = files.filter(function(f) { return /^GoodMart_Backup_.*\.csv$/i.test(f.name); });
+                        if (oldCsvFiles.length) {
+                            restoreLegacyCsvFromDrive(oldCsvFiles[0]);
+                        } else {
+                            showToast('Google Drive-এ এখনো Backup নেই। প্রথমে Backup বাটনে চাপ দিন।', 'success');
+                        }
+                        return;
+                    }
+                    var latest = fullFiles[0];
+                    if (latest.id === lastRestoreFileId) return;
+                    return fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(latest.id) + '?alt=media', {
+                        headers: { 'Authorization': 'Bearer ' + googleAccessToken }
+                    }).then(function(res) {
+                        if (!res.ok) throw new Error('Backup download failed: ' + res.status);
+                        return res.json();
+                    }).then(function(backup) {
+                        backup.fileId = latest.id;
+                        if (!backup || backup.format !== 'goodmart-full-backup' || !backup.data) {
+                            showToast('সর্বশেষ Auto Backup ফাইলের ফরম্যাট ঠিক নয়; স্থানীয় ডেটা বদলানো হয়নি।', 'error');
+                            return;
+                        }
+                        var localData = getAppDataSnapshot();
+                        var localSig = makeSnapshotSignature(localData);
+                        var remoteSig = makeSnapshotSignature(backup.data);
+                        if (localSig === remoteSig) {
+                            lastRestoreFileId = latest.id;
+                            lastUploadedSignature = localSig;
+                            showToast('Google Drive Sync ঠিক আছে—নতুন পরিবর্তন নেই।', 'success');
+                            return;
+                        }
+                        if (isLocalDataPristine()) {
+                            if (applyFullBackup(backup)) {
+                                showToast('Google Drive থেকে ডেটা Restore হয়েছে। অ্যাপ রিফ্রেশ হচ্ছে...', 'success');
+                                setTimeout(function() { location.reload(); }, 900);
+                            }
+                            return;
+                        }
+                        var remoteCount = (backup.data.gm_entries || []).length;
+                        var localCount = (localData.gm_entries || []).length;
+                        var restore = confirm('Google Drive-এ সর্বশেষ ব্যাকআপ (' + remoteCount + 'টি লেনদেন) পাওয়া গেছে। এই ফোনে আছে ' + localCount + 'টি লেনদেন।\n\nRestore করলে এই ফোনের ডেটা আগে নিরাপদ কপি হিসেবে রাখা হবে। তারপর Drive-এর ডেটা বসবে। Restore করবেন?\n\nCancel চাপলে বর্তমান ডেটা অপরিবর্তিত থাকবে।');
+                        if (!restore) {
+                            lastRestoreFileId = latest.id;
+                            showToast('Restore বাতিল। এই ফোনের ডেটা অপরিবর্তিত আছে।', 'success');
+                            return;
+                        }
+                        if (applyFullBackup(backup)) {
+                            showToast('Restore সম্পন্ন। অ্যাপ রিফ্রেশ হচ্ছে...', 'success');
+                            setTimeout(function() { location.reload(); }, 900);
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    console.error('Drive restore check failed:', err);
+                    showToast('Drive Restore চেক করা যায়নি। ইন্টারনেট/Google অনুমতি দেখে Restore / Sync চাপুন।', 'error');
+                });
+        }
+
+        function restoreLegacyCsvFromDrive(file) {
+            if (!file || !googleAccessToken) return;
+            if (lastRestoreFileId === file.id) return;
+            fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.id) + '?alt=media', {
+                headers: { 'Authorization': 'Bearer ' + googleAccessToken }
+            }).then(function(res) {
+                if (!res.ok) throw new Error('Legacy CSV download failed: ' + res.status);
+                return res.text();
+            }).then(function(csvText) {
+                var lines = csvText.replace(/^\uFEFF/, '').split(/\r?\n/);
+                var entries = [];
+                for (var i = 1; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line || line.indexOf('Stock Remaining') !== -1 || line.startsWith(',,,')) continue;
+                    var cols = parseCSVLine(line);
+                    if (cols.length < 4) continue;
+                    var date = cols[0], brand = cols[1], type = cols[2], invNo = cols[3];
+                    if (!date || !brand || ['Stock In', 'Stock Out', 'Claim Received'].indexOf(type) === -1) continue;
+                    entries.push({
+                        id: 'legacy_' + Date.now() + '_' + i,
+                        date: date, brand: brand, type: type, invoiceNum: invNo || ('IMP-' + i),
+                        so: cols[4] || 'N/A', credit: type === 'Stock In' ? (parseFloat(cols[5]) || 0) : 0,
+                        debit: type === 'Stock Out' ? (parseFloat(cols[6]) || 0) : 0,
+                        claim: type === 'Stock Out' ? (parseFloat(cols[7]) || 0) : 0,
+                        claimReceived: type === 'Claim Received' ? (parseFloat(cols[8]) || 0) : 0,
+                        details: cols[10] || ''
+                    });
+                }
+                if (!entries.length) {
+                    showToast('পুরোনো CSV ব্যাকআপে বৈধ লেনদেন পাওয়া যায়নি।', 'error');
+                    return;
+                }
+                var local = getAppDataSnapshot();
+                if (!isLocalDataPristine() && !confirm('Drive-এ পুরোনো CSV ব্যাকআপে ' + entries.length + 'টি লেনদেন পাওয়া গেছে। CSV-তে শুধু লেনদেন থাকে; Brands/Users/Settings থাকে না। বর্তমান স্থানীয় ডেটার নিরাপদ কপি রেখে শুধু লেনদেন Restore করবেন?')) {
+                    lastRestoreFileId = file.id;
+                    showToast('পুরোনো CSV Restore বাতিল হয়েছে; স্থানীয় ডেটা অপরিবর্তিত।', 'success');
+                    return;
+                }
+                if (!showLocalRestoreSafetyCopy(local)) return;
+                var counters = {};
+                entries.forEach(function(e) {
+                    var m = String(e.invoiceNum || '').match(/-(\d+)$/);
+                    if (m) counters[e.brand] = Math.max(counters[e.brand] || 0, parseInt(m[1], 10));
+                });
+                backupSuspend = true;
+                try {
+                    localStorage.setItem('gm_entries', JSON.stringify(entries));
+                    localStorage.setItem('gm_invoice_counters', JSON.stringify(counters));
+                } finally {
+                    backupSuspend = false;
+                }
+                lastRestoreFileId = file.id;
+                showToast('পুরোনো CSV থেকে ' + entries.length + 'টি লেনদেন Restore হয়েছে। Full backup পেতে Backup বাটনে চাপ দিন।', 'success');
+                setTimeout(function() { location.reload(); }, 1000);
+            }).catch(function(err) {
+                console.error(err);
+                showToast('পুরোনো CSV Restore ব্যর্থ হয়েছে। স্থানীয় ডেটা বদলানো হয়নি।', 'error');
+            });
+        }
+
+        function scheduleAutoBackup() {
+            if (backupSuspend) return;
+            if (backupTimer) clearTimeout(backupTimer);
+            backupTimer = setTimeout(function() {
+                backupTimer = null;
+                if (!googleAccessToken) {
+                    showToast('ডেটা এই ফোনে সেভ হয়েছে। Auto Backup-এর জন্য Google Drive Restore / Sync বা Backup বাটনে চাপ দিন।', 'error');
+                    return;
+                }
+                uploadAutoBackup(false);
+            }, 2500);
+        }
+
+        // Watch app data writes without changing the existing app's save/edit/delete functions.
+        (function installAutoBackupWatcher() {
+            var originalSetItem = Storage.prototype.setItem;
+            var originalRemoveItem = Storage.prototype.removeItem;
+            Storage.prototype.setItem = function(key, value) {
+                originalSetItem.call(this, key, value);
+                if (this === localStorage && GM_DATA_KEYS.indexOf(String(key)) !== -1) scheduleAutoBackup();
+            };
+            Storage.prototype.removeItem = function(key) {
+                originalRemoveItem.call(this, key);
+                if (this === localStorage && GM_DATA_KEYS.indexOf(String(key)) !== -1) scheduleAutoBackup();
+            };
+        })();
+
+        function uploadAutoBackup(manual) {
+            if (!googleAccessToken) {
+                if (manual) showToast('Google Drive অনুমতি নেই। Restore / Sync বাটনে চাপ দিন।', 'error');
+                return;
+            }
+            if (autoUploadInProgress) {
+                if (backupTimer) clearTimeout(backupTimer);
+                backupTimer = setTimeout(function() { backupTimer = null; uploadAutoBackup(manual); }, 3000);
+                return;
+            }
+            var snapshot = getAppDataSnapshot();
+            var signature = makeSnapshotSignature(snapshot);
+            if (!manual && signature === lastUploadedSignature) return;
+            var backup = {
+                app: 'Good Mart Enterprise',
+                format: 'goodmart-full-backup',
+                schemaVersion: 1,
+                updatedAt: new Date().toISOString(),
+                data: snapshot
+            };
+            var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+            var fileName = DRIVE_BACKUP_PREFIX + stamp + '.json';
+            var metadata = { name: fileName, mimeType: 'application/json', description: 'Good Mart complete automatic backup; previous snapshots are preserved' };
+            var form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', new Blob([JSON.stringify(backup)], { type: 'application/json' }));
+            autoUploadInProgress = true;
+            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,createdTime', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + googleAccessToken },
+                body: form
+            }).then(function(res) {
+                if (!res.ok) throw new Error('Auto backup upload failed: ' + res.status);
+                return res.json();
+            }).then(function(file) {
+                lastUploadedSignature = signature;
+                lastRestoreFileId = file.id;
+                showToast(manual ? 'সম্পূর্ণ Auto Backup-ও Google Drive-এ সেভ হয়েছে।' : 'Auto Backup Google Drive-এ সেভ হয়েছে।', 'success');
+            }).catch(function(err) {
+                console.error(err);
+                showToast('Auto Backup ব্যর্থ। Drive অনুমতি রিফ্রেশ করে আবার চেষ্টা করুন।', 'error');
+            }).finally(function() {
+                autoUploadInProgress = false;
+                // If data changed while the upload was running, upload the newest snapshot too.
+                if (makeSnapshotSignature(getAppDataSnapshot()) !== signature) scheduleAutoBackup();
+            });
+        }
+
+        // Keep the original daily CSV backup feature, while adding a complete JSON backup.
         function backupToGoogleDrive() {
             if (window.goodMartFirebase) window.goodMartFirebase.openPanel();
             else showToast('Firebase লোড হচ্ছে, একটু পরে চেষ্টা করুন', 'error');
         }
 
+        function getBackupCSVContent() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var csv = "Date,Brand,Invoice Type,Invoice Number,Sales Officer,Stock In,Stock Out,Claim,Claim Received,Net Stock Out,Details\n";
+            var totalIn = 0, totalOut = 0, totalClaim = 0, totalClaimRec = 0;
+            entries.sort(function(a, b) { return a.date.localeCompare(b.date); });
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                var netOut = (e.debit || 0) - (e.claim || 0);
+                totalIn += (e.credit || 0);
+                totalOut += (e.debit || 0);
+                totalClaim += (e.claim || 0);
+                totalClaimRec += (e.claimReceived || 0);
+                csv += e.date + "," + e.brand + "," + e.type + "," + (e.invoiceNum || "") + "," + (e.so || "N/A") + "," +
+                       (e.credit || "") + "," + (e.debit || "") + "," + (e.claim || "") + "," + (e.claimReceived || "") + "," +
+                       (e.type === "Stock Out" ? netOut.toFixed(2) : "") + "," +
+                       '"' + (e.details || "").replace(/"/g, '""') + '"\n';
+            }
+            var netStockOut = totalOut - totalClaim;
+            var stockRemaining = totalIn - totalOut;
+            csv += "\n";
+            csv += ",,,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalClaimRec.toFixed(2) + "," + netStockOut.toFixed(2) + ",\n";
+            csv += ",,,Stock Remaining,,,,,,," + stockRemaining.toFixed(2) + "\n";
+            return csv;
+        }
+
+        function uploadBackupToDrive() {
+            if (!googleAccessToken) {
+                showToast('Google টোকেন নেই', 'error');
+                return;
+            }
+            var csvContent = getBackupCSVContent();
+            var fileName = "GoodMart_Backup_" + new Date().toISOString().slice(0,10) + ".csv";
+            var metadata = { name: fileName, mimeType: 'text/csv' };
+            var form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', new Blob(["\uFEFF" + csvContent], { type: 'text/csv' }));
+            showToast('লেনদেনের CSV Google Drive-এ আপলোড হচ্ছে...', 'success');
+            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST', headers: { 'Authorization': 'Bearer ' + googleAccessToken }, body: form
+            }).then(function(res) {
+                if (!res.ok) throw new Error('Upload failed: ' + res.status);
+                return res.json();
+            }).then(function(data) {
+                showToast('CSV Backup সেভ হয়েছে: ' + fileName, 'success');
+                console.log('Uploaded CSV backup ID:', data.id);
+            }).catch(function(err) {
+                console.error(err);
+                showToast('CSV Backup আপলোড ব্যর্থ।', 'error');
+            });
+        }
+
         function resetDefaults() {
             if (!confirm('সব ডেটা মুছে ডিফল্ট সেটিংস ফিরে আসবে। নিশ্চিত?')) return;
-            localStorage.clear();
-            initStorage();
-            showToast('ডিফল্ট সেটিংস রিস্টোর হয়েছে', 'success');
+            if (!confirm('সতর্কতা: এটি এই ফোনের ডেটা মুছবে। আগে Full Backup/Google Drive backup নিশ্চিত করেছেন?')) return;
+            backupSuspend = true;
+            try {
+                localStorage.clear();
+                initStorage();
+            } finally {
+                backupSuspend = false;
+            }
+            showToast('ডিফল্ট সেটিংস রিস্টোর হয়েছে। Drive-এর পুরোনো ব্যাকআপ মুছে ফেলা হয়নি।', 'success');
             setTimeout(function() { location.reload(); }, 800);
         }
 
@@ -419,6 +929,7 @@
             var found = users.find(function(x) { return x.username.toLowerCase() === username.toLowerCase(); });
             if (found) {
                 currentUser = found;
+                window.currentUser = currentUser;
                 localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
                 showMainApp();
                 showToast('লগইন সফল!', 'success');
@@ -433,6 +944,7 @@
             var found = users.find(function(x) { return x.username.toLowerCase() === u && x.pass === p; });
             if (found) {
                 currentUser = found;
+                window.currentUser = currentUser;
                 localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
                 showMainApp();
                 showToast('লগইন সফল!', 'success');
@@ -444,6 +956,7 @@
         function handleLogout() {
             localStorage.removeItem("gm_logged_user");
             currentUser = null;
+            window.currentUser = null;
             document.getElementById("mainApp").classList.add("hidden");
             document.getElementById("loginScreen").classList.remove("hidden");
             showToast('লগআউট হয়েছে', 'success');
@@ -1125,7 +1638,7 @@
             }
         }
     </script>
-    <script type="module">
+<script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
       import {
         getAuth, onAuthStateChanged, signInWithEmailAndPassword,
@@ -1238,7 +1751,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
       }
       function userDoc() {
         if (!currentFirebaseUser) throw new Error("প্রথমে Firebase অ্যাকাউন্টে লগইন করুন।");
-        return doc(db, "users", currentFirebaseUser.uid, "goodmart", "main");
+        const appUser = window.currentUser || JSON.parse(localStorage.getItem("gm_logged_user") || "null");
+        const username = appUser && appUser.username ? String(appUser.username).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_") : "unassigned";
+        return doc(db, "users", currentFirebaseUser.uid, "goodmart", username);
       }
       async function cloudWrite(d, reason="auto") {
         if (!currentFirebaseUser || applyingCloud || !cloudReady) return;
@@ -1499,7 +2014,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
         };
       }
 
-      setPersistence(auth, browserLocalPersistence).catch(console.error);
+      // Wait for Firebase's browser-local persistence to initialize before
+      // subscribing to auth state or allowing account interactions.
+      // This helps keep Firebase signed in across page refreshes.
+      await setPersistence(auth, browserLocalPersistence);
       onAuthStateChanged(auth, async user => {
         currentFirebaseUser = user;
         cloudReady = false;
@@ -1512,6 +2030,5 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
         await checkCloudOnLaunch();
       });
     </script>
-
 </body>
 </html>
