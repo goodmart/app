@@ -172,16 +172,16 @@
                 </div>
             </div>
             <div class="desktop-tabs flex flex-wrap gap-2">
-                <button onclick="switchTab('dashboard')" id="tabDashboardBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Transactions</button>
-                <button onclick="switchTab('soManager')" id="tabSoBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Sales Officers</button>
-                <button onclick="switchTab('brands')" id="tabBrandsBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Brands</button>
+                <button onclick="switchTab('dashboard')" id="tabDashboardBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Entry</button>
+                <button onclick="switchTab('history')" id="tabHistoryBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">History</button>
+                <button onclick="switchTab('brandsSo')" id="tabBrandsSoBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Brands & SO</button>
                 <button onclick="switchTab('users')" id="tabUsersBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow hidden">Users</button>
                 <button onclick="switchTab('analytics')" id="tabAnalyticsBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Analytics</button>
                 <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Logout</button>
             </div>
         </div>
 
-        <!-- DASHBOARD -->
+        <!-- DASHBOARD (ENTRY & RECENT TRANSACTIONS) -->
         <div id="tabDashboard" class="space-y-4">
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div class="p-4 rounded-2xl shadow-lg text-white card-blue">
@@ -202,10 +202,21 @@
                 </div>
             </div>
 
+            <!-- Entry Form Card with Backup / Import Buttons -->
             <div class="bg-white shadow-md rounded-2xl p-4 sm:p-5">
-                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 border-b pb-2">
                     <h2 class="text-base font-bold text-gray-800">নতুন এন্ট্রি</h2>
-                    <span id="editModeBadge" class="hidden text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-bold">Editing...</span>
+                    <div class="flex flex-wrap gap-2 items-center">
+                        <div class="flex items-center gap-1 bg-gray-50 border p-1 rounded-xl text-xs">
+                            <span class="text-gray-500 px-1">From:</span><input type="date" id="exportFromDate" class="border rounded px-1 py-0.5">
+                            <span class="text-gray-500 px-1">To:</span><input type="date" id="exportToDate" class="border rounded px-1 py-0.5">
+                        </div>
+                        <button onclick="exportFullBackup()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-3 rounded-xl">↓ Date-wise Full Backup (CSV)</button>
+                        <label id="importBtnWrapper" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-xl cursor-pointer">
+                            ↑ Import Backup
+                            <input type="file" id="importFile" accept=".csv" class="hidden" onchange="importBackup(event)">
+                        </label>
+                    </div>
                 </div>
                 
                 <form id="invoiceForm" onsubmit="handleFormSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -272,38 +283,17 @@
                     <div class="lg:col-span-5 flex gap-2 mt-1">
                         <button type="submit" id="submitBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Submit Entry</button>
                         <button type="button" id="cancelEditBtn" onclick="cancelEdit()" class="hidden bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3.5 px-4 rounded-xl text-sm">Cancel</button>
+                        <span id="editModeBadge" class="hidden text-xs bg-yellow-100 text-yellow-800 px-3 py-2 rounded-xl font-bold flex items-center">Editing...</span>
                     </div>
                 </form>
             </div>
 
-            <!-- Filter + Backup -->
-            <div class="bg-white p-3 rounded-2xl shadow-sm space-y-3">
-                <div class="flex flex-wrap gap-2 items-center">
-                    <input type="date" id="filterFrom" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl">
-                    <span class="text-xs text-gray-500">থেকে</span>
-                    <input type="date" id="filterTo" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl">
-                    <select id="filterBrand" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl"><option value="">All Brands</option></select>
-                    <select id="filterType" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl">
-                        <option value="">All Types</option>
-                        <option value="Stock In">Stock In</option>
-                        <option value="Stock Out">Stock Out</option>
-                        <option value="Claim Received">Claim Received</option>
-                    </select>
-                    <input type="text" id="searchInput" oninput="renderDashboard()" placeholder="Invoice No / SO / Details..." class="flex-1 min-w-[140px] px-3 py-2 text-sm border rounded-xl">
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <button onclick="exportFullBackup()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded-xl">↓ Full Backup (CSV)</button>
-                    <label class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-xl cursor-pointer">
-                        ↑ Import Backup
-                        <input type="file" id="importFile" accept=".csv" class="hidden" onchange="importBackup(event)">
-                    </label>
-                    <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold py-2 px-4 rounded-xl">🖨 Print</button>
-                </div>
-            </div>
-
-            <!-- Recent Transactions Table -->
+            <!-- Recent Transactions Preview Table (Last 10) -->
             <div class="bg-white p-4 rounded-2xl shadow-md overflow-hidden">
-                <h3 class="font-bold text-sm text-gray-800 mb-3">Recent Transactions</h3>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-sm text-gray-800">Recent Transactions (Latest)</h3>
+                    <button onclick="switchTab('history')" class="text-blue-600 text-xs font-bold hover:underline">View All History →</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-xs sm:text-sm">
                         <thead>
@@ -324,34 +314,83 @@
                 </div>
                 <p id="noEntriesMsg" class="text-center text-gray-400 text-sm py-6 hidden">কোনো লেনদেন পাওয়া যায়নি</p>
             </div>
+        </div>
 
-            <!-- USER PANEL SUMMARY TABLE (Only visible to 'user' / staff role) -->
-            <div id="userPanelSummaryArea" class="bg-white p-4 rounded-2xl shadow-md overflow-hidden hidden">
-                <div class="flex justify-between items-center mb-3 border-b pb-2">
-                    <h3 class="font-bold text-sm text-gray-800">Inventory Summary</h3>
-                    <button onclick="exportSummaryCSV()" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2 px-3 rounded-xl shadow">↓ Export Summary CSV</button>
+        <!-- HISTORY TAB (ALL INVOICES WITH 100 PAGINATION) -->
+        <div id="tabHistory" class="space-y-4 hidden">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3 mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800">Transaction History</h2>
+                        <p class="text-xs text-gray-500">প্রতি পেজে ১০০টি ইনভয়েস প্রদর্শিত হচ্ছে</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="exportFullBackup()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded-xl">↓ Date-wise Full Backup (CSV)</button>
+                        <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold py-2 px-4 rounded-xl">🖨 Print</button>
+                    </div>
                 </div>
+
+                <!-- Filters -->
+                <div class="flex flex-wrap gap-2 items-center mb-4">
+                    <input type="date" id="filterFrom" onchange="renderHistoryTable()" class="px-3 py-2 text-sm border rounded-xl">
+                    <span class="text-xs text-gray-500">থেকে</span>
+                    <input type="date" id="filterTo" onchange="renderHistoryTable()" class="px-3 py-2 text-sm border rounded-xl">
+                    <select id="filterBrand" onchange="renderHistoryTable()" class="px-3 py-2 text-sm border rounded-xl"><option value="">All Brands</option></select>
+                    <select id="filterType" onchange="renderHistoryTable()" class="px-3 py-2 text-sm border rounded-xl">
+                        <option value="">All Types</option>
+                        <option value="Stock In">Stock In</option>
+                        <option value="Stock Out">Stock Out</option>
+                        <option value="Claim Received">Claim Received</option>
+                    </select>
+                    <input type="text" id="searchInput" oninput="renderHistoryTable()" placeholder="Invoice No / SO / Details..." class="flex-1 min-w-[140px] px-3 py-2 text-sm border rounded-xl">
+                </div>
+
                 <div class="overflow-x-auto">
-                    <table class="min-w-full text-xs sm:text-sm border border-gray-200">
+                    <table class="min-w-full text-xs sm:text-sm">
                         <thead>
-                            <tr class="bg-blue-50 text-blue-900 uppercase text-[10px] font-bold border-b border-gray-200">
+                            <tr class="bg-gray-100 text-gray-700 uppercase text-[10px]">
+                                <th class="py-2.5 px-3 text-left">Date</th>
+                                <th class="py-2.5 px-3 text-left">Invoice</th>
                                 <th class="py-2.5 px-3 text-left">Brand</th>
-                                <th class="py-2.5 px-3 text-right">Stock In (TK)</th>
-                                <th class="py-2.5 px-3 text-right">Stock Out (TK)</th>
-                                <th class="py-2.5 px-3 text-right">Pending Claim (TK)</th>
-                                <th class="py-2.5 px-3 text-right">Stock Remaining (TK)</th>
+                                <th class="py-2.5 px-3 text-left">SO</th>
+                                <th class="py-2.5 px-3 text-left">Type</th>
+                                <th class="py-2.5 px-3 text-right">In</th>
+                                <th class="py-2.5 px-3 text-right">Out</th>
+                                <th class="py-2.5 px-3 text-right">Claim</th>
+                                <th class="py-2.5 px-3 text-center no-print">Action</th>
                             </tr>
                         </thead>
-                        <tbody id="userSummaryTableBody" class="divide-y divide-gray-100"></tbody>
+                        <tbody id="historyTableBody" class="divide-y divide-gray-100"></tbody>
                     </table>
+                </div>
+                <p id="noHistoryMsg" class="text-center text-gray-400 text-sm py-6 hidden">কোনো ইতিহাস পাওয়া যায়নি</p>
+
+                <!-- Pagination Controls -->
+                <div class="flex justify-between items-center mt-4 border-t pt-3">
+                    <span id="historyPageInfo" class="text-xs font-semibold text-gray-600">Showing Page 1 of 1</span>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" onclick="changeHistoryPage(-1)" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold py-1.5 px-3 rounded-lg">Previous</button>
+                        <button id="nextPageBtn" onclick="changeHistoryPage(1)" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold py-1.5 px-3 rounded-lg">Next</button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- SO MANAGER -->
-        <div id="tabSoManager" class="space-y-4 hidden">
+        <!-- MERGED TAB: BRANDS & SO MANAGER -->
+        <div id="tabBrandsSo" class="space-y-4 hidden">
+            <!-- Brand Section -->
+            <div id="adminBrandSection" class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
+                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">১. ব্র্যান্ড ম্যানেজমেন্ট</h2>
+                <form onsubmit="handleAddBrand(event)" class="flex gap-2 mb-4">
+                    <input type="text" id="newBrandInput" placeholder="নতুন ব্র্যান্ডের নাম" required class="flex-1 px-4 py-2.5 text-sm border rounded-xl">
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm shadow">Add Brand</button>
+                </form>
+                <div id="brandsList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+            </div>
+
+            <!-- SO Section -->
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
-                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">Sales Officer ম্যানেজমেন্ট</h2>
+                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">২. Sales Officer ম্যানেজমেন্ট</h2>
                 <form onsubmit="handleCreateSO(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-yellow-50 p-4 rounded-xl border border-yellow-200">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">Assigned Brand</label>
@@ -377,18 +416,6 @@
                         <tbody id="soListTableBody" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-
-        <!-- BRANDS -->
-        <div id="tabBrands" class="space-y-4 hidden">
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
-                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">ব্র্যান্ড ম্যানেজমেন্ট</h2>
-                <form onsubmit="handleAddBrand(event)" class="flex gap-2 mb-5">
-                    <input type="text" id="newBrandInput" placeholder="নতুন ব্র্যান্ডের নাম" required class="flex-1 px-4 py-2.5 text-sm border rounded-xl">
-                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm shadow">Add Brand</button>
-                </form>
-                <div id="brandsList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
             </div>
         </div>
 
@@ -482,15 +509,15 @@
     <div class="bottom-nav flex md:hidden" id="bottomNav">
         <button type="button" data-tab="dashboard" class="nav-item active">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-            Transactions
+            Entry
         </button>
-        <button type="button" data-tab="soManager" class="nav-item">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            SO
+        <button type="button" data-tab="history" class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            History
         </button>
-        <button type="button" data-tab="brands" class="nav-item">
+        <button type="button" data-tab="brandsSo" class="nav-item">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-            Brands
+            Brands&SO
         </button>
         <button type="button" data-tab="users" class="nav-item" id="navUsersBtn">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
@@ -520,6 +547,8 @@
 
         var db = null;
         var isFirebaseConnected = false;
+        var currentHistoryPage = 1;
+        var itemsPerPage = 100;
 
         function initFirebase() {
             try {
@@ -547,6 +576,7 @@
                 });
                 localStorage.setItem("gm_entries", JSON.stringify(entries));
                 renderDashboard();
+                renderHistoryTable();
             });
 
             db.collection("settings").doc("brands").onSnapshot(function(doc) {
@@ -724,9 +754,8 @@
             var adminDbArea = document.getElementById("adminDbStatusArea");
             var usersDesktopBtn = document.getElementById("tabUsersBtn");
             var usersMobileBtn = document.getElementById("navUsersBtn");
-            var brandsDesktopBtn = document.getElementById('tabBrandsBtn');
-            var brandsMobileBtn = document.querySelector('#bottomNav [data-tab="brands"]');
-            var userPanelSummaryArea = document.getElementById("userPanelSummaryArea");
+            var adminBrandSec = document.getElementById("adminBrandSection");
+            var importBtnWrapper = document.getElementById("importBtnWrapper");
 
             if (currentUser.role === 'admin') {
                 adminDbArea.classList.remove("hidden");
@@ -735,12 +764,8 @@
                     usersMobileBtn.style.display = '';
                     usersMobileBtn.removeAttribute('data-hidden');
                 }
-                if (brandsDesktopBtn) brandsDesktopBtn.classList.remove('hidden');
-                if (brandsMobileBtn) {
-                    brandsMobileBtn.style.display = '';
-                    brandsMobileBtn.removeAttribute('data-hidden');
-                }
-                if (userPanelSummaryArea) userPanelSummaryArea.classList.add("hidden");
+                if (adminBrandSec) adminBrandSec.classList.remove("hidden");
+                if (importBtnWrapper) importBtnWrapper.classList.remove("hidden");
             } else {
                 adminDbArea.classList.add("hidden");
                 if (usersDesktopBtn) usersDesktopBtn.classList.add("hidden");
@@ -748,21 +773,19 @@
                     usersMobileBtn.style.display = 'none';
                     usersMobileBtn.setAttribute('data-hidden', 'true');
                 }
-                if (brandsDesktopBtn) brandsDesktopBtn.classList.add('hidden');
-                if (brandsMobileBtn) {
-                    brandsMobileBtn.style.display = 'none';
-                    brandsMobileBtn.setAttribute('data-hidden', 'true');
-                }
-                if (userPanelSummaryArea) userPanelSummaryArea.classList.remove("hidden");
+                if (adminBrandSec) adminBrandSec.classList.add("hidden");
+                if (importBtnWrapper) importBtnWrapper.classList.add("hidden");
             }
 
             loadAllBrands();
             populateFilterBrand();
             renderSoList();
+            renderBrands();
             renderUserBrandCheckboxes();
             renderUserList();
             onBrandOrTypeChange();
             renderDashboard();
+            renderHistoryTable();
         }
 
         function getBrandCode(brandName) {
@@ -838,13 +861,13 @@
 
         function switchTab(tabName) {
             try {
-                var tabs = ['tabDashboard', 'tabSoManager', 'tabBrands', 'tabUsers', 'tabAnalytics'];
+                var tabs = ['tabDashboard', 'tabHistory', 'tabBrandsSo', 'tabUsers', 'tabAnalytics'];
                 for (var i = 0; i < tabs.length; i++) {
                     var el = document.getElementById(tabs[i]);
                     if (el) el.classList.add('hidden');
                 }
                 
-                var btns = ['tabDashboardBtn', 'tabSoBtn', 'tabBrandsBtn', 'tabUsersBtn', 'tabAnalyticsBtn'];
+                var btns = ['tabDashboardBtn', 'tabHistoryBtn', 'tabBrandsSoBtn', 'tabUsersBtn', 'tabAnalyticsBtn'];
                 for (var i = 0; i < btns.length; i++) {
                     var el = document.getElementById(btns[i]);
                     if (el) el.className = "bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow";
@@ -857,22 +880,18 @@
                     loadAllBrands();
                     onBrandOrTypeChange();
                     renderDashboard();
-                } else if (tabName === 'soManager') {
-                    document.getElementById("tabSoManager").classList.remove("hidden");
-                    var btn = document.getElementById("tabSoBtn");
+                } else if (tabName === 'history') {
+                    document.getElementById("tabHistory").classList.remove("hidden");
+                    var btn = document.getElementById("tabHistoryBtn");
+                    if (btn) btn.className = "bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
+                    renderHistoryTable();
+                } else if (tabName === 'brandsSo') {
+                    document.getElementById("tabBrandsSo").classList.remove("hidden");
+                    var btn = document.getElementById("tabBrandsSoBtn");
                     if (btn) btn.className = "bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
                     loadAllBrands();
-                    renderSoList();
-                } else if (tabName === 'brands') {
-                    if (currentUser.role !== 'admin') {
-                        showToast('শুধু Admin ব্র্যান্ড ম্যানেজ করতে পারবে', 'error');
-                        switchTab('dashboard');
-                        return;
-                    }
-                    document.getElementById("tabBrands").classList.remove("hidden");
-                    var btn = document.getElementById("tabBrandsBtn");
-                    if (btn) btn.className = "bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
                     renderBrands();
+                    renderSoList();
                 } else if (tabName === 'users') {
                     if (currentUser.role !== 'admin') {
                         showToast('শুধু Admin ইউজার ম্যানেজ করতে পারবে', 'error');
@@ -1288,6 +1307,7 @@
 
             cancelEdit();
             renderDashboard();
+            renderHistoryTable();
         }
 
         function showInvoiceModal(entry) {
@@ -1338,6 +1358,7 @@
             var e = null;
             for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
             if (!e) return;
+            switchTab('dashboard');
             document.getElementById("editEntryId").value = e.id;
             document.getElementById("date").value = e.date;
             document.getElementById("brandSelect").value = e.brand;
@@ -1391,10 +1412,64 @@
             removeFromFirebase("entries", id);
 
             renderDashboard();
+            renderHistoryTable();
             showToast('এন্ট্রি মুছে ফেলা হয়েছে', 'success');
         }
 
         function renderDashboard() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var allAllowed = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
+
+            var totalIn = 0, totalOut = 0, totalClaimSubmitted = 0, totalClaimReceived = 0;
+            for (var i = 0; i < allAllowed.length; i++) {
+                totalIn += (allAllowed[i].credit || 0);
+                totalOut += (allAllowed[i].debit || 0);
+                totalClaimSubmitted += (allAllowed[i].claim || 0);
+                totalClaimReceived += (allAllowed[i].claimReceived || 0);
+            }
+            var pendingClaim = totalClaimSubmitted - totalClaimReceived;
+            var stockRemaining = totalIn - totalOut;
+
+            document.getElementById("summaryTotalIn").innerText = totalIn.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById("summaryTotalOut").innerText = totalOut.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById("summaryPendingClaim").innerText = pendingClaim.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById("summaryRemainingStock").innerText = stockRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+            var tbody = document.getElementById("entriesTableBody");
+            tbody.innerHTML = "";
+            var displayList = allAllowed.slice().reverse().slice(0, 10);
+            if (displayList.length === 0) {
+                document.getElementById("noEntriesMsg").classList.remove("hidden");
+            } else {
+                document.getElementById("noEntriesMsg").classList.add("hidden");
+                for (var i = 0; i < displayList.length; i++) {
+                    var e = displayList[i];
+                    var claimDisplay = '-';
+                    if (e.claim) claimDisplay = e.claim.toFixed(2);
+                    else if (e.claimReceived) claimDisplay = '+' + e.claimReceived.toFixed(2);
+                    var typeClass = e.type === 'Stock In' ? 'bg-blue-100 text-blue-800' : (e.type === 'Stock Out' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800');
+                    var tr = document.createElement("tr");
+                    tr.className = "hover:bg-gray-50";
+                    tr.innerHTML = '<td class="py-2.5 px-3 text-gray-600">' + e.date + '</td>' +
+                        '<td class="py-2.5 px-3 font-bold text-blue-700 text-xs">' + (e.invoiceNum || '-') + '</td>' +
+                        '<td class="py-2.5 px-3 font-bold">' + e.brand + '</td>' +
+                        '<td class="py-2.5 px-3 font-semibold text-yellow-800 text-xs">' + (e.so || 'N/A') + '</td>' +
+                        '<td class="py-2.5 px-3"><span class="px-2 py-0.5 text-[10px] font-bold rounded-full ' + typeClass + '">' + e.type + '</span></td>' +
+                        '<td class="py-2.5 px-3 text-right font-bold text-blue-600">' + (e.credit ? e.credit.toFixed(2) : '-') + '</td>' +
+                        '<td class="py-2.5 px-3 text-right font-bold text-indigo-600">' + (e.debit ? e.debit.toFixed(2) : '-') + '</td>' +
+                        '<td class="py-2.5 px-3 text-right font-bold text-amber-600">' + claimDisplay + '</td>' +
+                        '<td class="py-2.5 px-3 text-center no-print">' +
+                            '<button onclick="showInvoiceModalFromId(\'' + e.id + '\')" class="text-green-600 font-bold text-xs mr-1">View</button>' +
+                            '<button onclick="editEntry(\'' + e.id + '\')" class="text-blue-600 font-bold text-xs mr-1">Edit</button>' +
+                            '<button onclick="deleteEntry(\'' + e.id + '\')" class="text-red-500 font-bold text-xs">Del</button></td>';
+                    tbody.appendChild(tr);
+                }
+            }
+        }
+
+        function renderHistoryTable() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
@@ -1419,31 +1494,26 @@
             if (fFrom) filtered = filtered.filter(function(e) { return e.date >= fFrom; });
             if (fTo) filtered = filtered.filter(function(e) { return e.date <= fTo; });
 
-            var allAllowed = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
-            var totalIn = 0, totalOut = 0, totalClaimSubmitted = 0, totalClaimReceived = 0;
-            for (var i = 0; i < allAllowed.length; i++) {
-                totalIn += (allAllowed[i].credit || 0);
-                totalOut += (allAllowed[i].debit || 0);
-                totalClaimSubmitted += (allAllowed[i].claim || 0);
-                totalClaimReceived += (allAllowed[i].claimReceived || 0);
-            }
-            var pendingClaim = totalClaimSubmitted - totalClaimReceived;
-            var stockRemaining = totalIn - totalOut;
+            filtered.sort(function(a, b) { return b.date.localeCompare(a.date); });
 
-            document.getElementById("summaryTotalIn").innerText = totalIn.toLocaleString('en-US', { minimumFractionDigits: 2 });
-            document.getElementById("summaryTotalOut").innerText = totalOut.toLocaleString('en-US', { minimumFractionDigits: 2 });
-            document.getElementById("summaryPendingClaim").innerText = pendingClaim.toLocaleString('en-US', { minimumFractionDigits: 2 });
-            document.getElementById("summaryRemainingStock").innerText = stockRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            var totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+            if (currentHistoryPage > totalPages) currentHistoryPage = totalPages;
+            if (currentHistoryPage < 1) currentHistoryPage = 1;
 
-            var tbody = document.getElementById("entriesTableBody");
+            var startIndex = (currentHistoryPage - 1) * itemsPerPage;
+            var endIndex = startIndex + itemsPerPage;
+            var pageEntries = filtered.slice(startIndex, endIndex);
+
+            var tbody = document.getElementById("historyTableBody");
+            if (!tbody) return;
             tbody.innerHTML = "";
-            if (filtered.length === 0) {
-                document.getElementById("noEntriesMsg").classList.remove("hidden");
+
+            if (pageEntries.length === 0) {
+                document.getElementById("noHistoryMsg").classList.remove("hidden");
             } else {
-                document.getElementById("noEntriesMsg").classList.add("hidden");
-                var displayList = filtered.slice().reverse();
-                for (var i = 0; i < displayList.length; i++) {
-                    var e = displayList[i];
+                document.getElementById("noHistoryMsg").classList.add("hidden");
+                for (var i = 0; i < pageEntries.length; i++) {
+                    var e = pageEntries[i];
                     var claimDisplay = '-';
                     if (e.claim) claimDisplay = e.claim.toFixed(2);
                     else if (e.claimReceived) claimDisplay = '+' + e.claimReceived.toFixed(2);
@@ -1466,103 +1536,14 @@
                 }
             }
 
-            if (currentUser && currentUser.role !== 'admin') {
-                renderUserPanelSummary(filtered, allowedBrands);
-            }
+            document.getElementById("historyPageInfo").innerText = "Showing Page " + currentHistoryPage + " of " + totalPages + " (Total: " + filtered.length + " Invoices)";
+            document.getElementById("prevPageBtn").disabled = currentHistoryPage <= 1;
+            document.getElementById("nextPageBtn").disabled = currentHistoryPage >= totalPages;
         }
 
-        // RENDER SUMMARY TABLE FOR USER PANEL
-        function renderUserPanelSummary(filteredEntries, allowedBrands) {
-            var tbody = document.getElementById("userSummaryTableBody");
-            if (!tbody) return;
-            tbody.innerHTML = "";
-
-            var brandTotals = {};
-            for (var i = 0; i < allowedBrands.length; i++) {
-                brandTotals[allowedBrands[i]] = { in: 0, out: 0, claimSub: 0, claimRec: 0 };
-            }
-
-            for (var j = 0; j < filteredEntries.length; j++) {
-                var e = filteredEntries[j];
-                if (brandTotals[e.brand]) {
-                    brandTotals[e.brand].in += (e.credit || 0);
-                    brandTotals[e.brand].out += (e.debit || 0);
-                    brandTotals[e.brand].claimSub += (e.claim || 0);
-                    brandTotals[e.brand].claimRec += (e.claimReceived || 0);
-                }
-            }
-
-            var grandIn = 0, grandOut = 0, grandPendingClaim = 0, grandRemaining = 0;
-
-            for (var brand in brandTotals) {
-                var data = brandTotals[brand];
-                var pendingClaim = data.claimSub - data.claimRec;
-                var remaining = data.in - data.out;
-
-                grandIn += data.in;
-                grandOut += data.out;
-                grandPendingClaim += pendingClaim;
-                grandRemaining += remaining;
-
-                var tr = document.createElement("tr");
-                tr.innerHTML = '<td class="py-2.5 px-3 font-bold text-gray-800">' + brand + '</td>' +
-                    '<td class="py-2.5 px-3 text-right font-semibold text-blue-700">' + data.in.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
-                    '<td class="py-2.5 px-3 text-right font-semibold text-indigo-700">' + data.out.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
-                    '<td class="py-2.5 px-3 text-right font-semibold text-amber-700">' + pendingClaim.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
-                    '<td class="py-2.5 px-3 text-right font-bold text-emerald-700">' + remaining.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>';
-                tbody.appendChild(tr);
-            }
-
-            var totalTr = document.createElement("tr");
-            totalTr.className = "bg-gray-100 font-bold border-t-2 border-gray-300";
-            totalTr.innerHTML = '<td class="py-2.5 px-3 text-gray-900">Total</td>' +
-                '<td class="py-2.5 px-3 text-right text-blue-800">' + grandIn.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
-                '<td class="py-2.5 px-3 text-right text-indigo-800">' + grandOut.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
-                '<td class="py-2.5 px-3 text-right text-amber-800">' + grandPendingClaim.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
-                '<td class="py-2.5 px-3 text-right text-emerald-800">' + grandRemaining.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>';
-            tbody.appendChild(totalTr);
-        }
-
-        // EXPORT SUMMARY CSV FOR USER PANEL
-        function exportSummaryCSV() {
-            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
-            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
-            
-            var csv = "Brand,Stock In (TK),Stock Out (TK),Pending Claim (TK),Stock Remaining (TK)\n";
-            var grandIn = 0, grandOut = 0, grandPendingClaim = 0, grandRemaining = 0;
-
-            for (var i = 0; i < allowedBrands.length; i++) {
-                var b = allowedBrands[i];
-                var bEntries = entries.filter(function(e) { return e.brand === b; });
-                var bIn = 0, bOut = 0, bClaimSub = 0, bClaimRec = 0;
-
-                for (var j = 0; j < bEntries.length; j++) {
-                    bIn += (bEntries[j].credit || 0);
-                    bOut += (bEntries[j].debit || 0);
-                    bClaimSub += (bEntries[j].claim || 0);
-                    bClaimRec += (bEntries[j].claimReceived || 0);
-                }
-
-                var pendingClaim = bClaimSub - bClaimRec;
-                var remaining = bIn - bOut;
-
-                grandIn += bIn;
-                grandOut += bOut;
-                grandPendingClaim += pendingClaim;
-                grandRemaining += remaining;
-
-                csv += b + "," + bIn.toFixed(2) + "," + bOut.toFixed(2) + "," + pendingClaim.toFixed(2) + "," + remaining.toFixed(2) + "\n";
-            }
-
-            csv += "Total," + grandIn.toFixed(2) + "," + grandOut.toFixed(2) + "," + grandPendingClaim.toFixed(2) + "," + grandRemaining.toFixed(2) + "\n";
-
-            var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-            var link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = "GoodMart_Inventory_Summary_" + new Date().toISOString().slice(0,10) + ".csv";
-            link.click();
-            showToast('Inventory Summary CSV ডাউনলোড হয়েছে', 'success');
+        function changeHistoryPage(direction) {
+            currentHistoryPage += direction;
+            renderHistoryTable();
         }
 
         function showInvoiceModalFromId(id) {
@@ -1572,21 +1553,57 @@
             if (e) { lastSavedEntry = e; showInvoiceModal(e); }
         }
 
-        // FULL BACKUP CSV - EXACT 100% MATCH WITH ORIGINAL SAMPLE FILE STRUCTURE
+        // DATE-WISE FULL BACKUP WITH "Opening Balance" CARRY FORWARD
         function exportFullBackup() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
-            if (entries.length === 0) {
-                showToast('এক্সপোর্ট করার মতো ডেটা নেই', 'error');
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            
+            var allowedBrands = currentUser.role === 'admin' ? brands : (currentUser.brands || []);
+            var exportEntries = currentUser.role === 'admin' ? entries : entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
+
+            // Date-wise filtering check
+            var fromDate = document.getElementById("exportFromDate") ? document.getElementById("exportFromDate").value : "";
+            var toDate = document.getElementById("exportToDate") ? document.getElementById("exportToDate").value : "";
+
+            var openingBalanceTotal = 0;
+
+            if (fromDate) {
+                // Calculate opening balance for entries strictly BEFORE 'fromDate'
+                var priorEntries = exportEntries.filter(function(e) { return e.date < fromDate; });
+                var priorIn = 0, priorOut = 0;
+                for (var p = 0; p < priorEntries.length; p++) {
+                    priorIn += (priorEntries[p].credit || 0);
+                    priorOut += (priorEntries[p].debit || 0);
+                }
+                openingBalanceTotal = priorIn - priorOut;
+
+                // Filter export entries within the date range
+                exportEntries = exportEntries.filter(function(e) {
+                    return e.date >= fromDate && (!toDate || e.date <= toDate);
+                });
+            } else if (toDate) {
+                exportEntries = exportEntries.filter(function(e) { return e.date <= toDate; });
+            }
+
+            if (exportEntries.length === 0 && openingBalanceTotal === 0) {
+                showToast('এক্সপোর্ট করার মতো কোনো ডেটা নেই', 'error');
                 return;
             }
-            // Header matching original sample file exactly
+
             var csv = "Date,Brand,Invoice Type,Invoice Number,Stock In,Stock Out,Claim,Net Stock Out\n";
+
+            // If there's an opening balance from prior dates, insert it as the first row
+            if (openingBalanceTotal !== 0 && fromDate) {
+                csv += fromDate + ",All Brands,Opening Balance,OPN-001," + openingBalanceTotal.toFixed(2) + ",,,\n";
+            }
+
+            var totalIn = openingBalanceTotal > 0 ? openingBalanceTotal : 0;
+            var totalOut = 0, totalClaim = 0, totalNetOut = 0;
+
+            exportEntries.sort(function(a, b) { return a.date.localeCompare(b.date); });
             
-            var totalIn = 0, totalOut = 0, totalClaim = 0, totalNetOut = 0;
-            entries.sort(function(a, b) { return a.date.localeCompare(b.date); });
-            
-            for (var i = 0; i < entries.length; i++) {
-                var e = entries[i];
+            for (var i = 0; i < exportEntries.length; i++) {
+                var e = exportEntries[i];
                 var netOutVal = e.type === "Stock Out" ? ((e.debit || 0) - (e.claim || 0)) : "";
                 
                 totalIn += (e.credit || 0);
@@ -1608,24 +1625,25 @@
 
             var stockRemaining = totalIn - totalOut;
 
-            // Empty line before summary totals (Matching sample line 25)
             csv += "\n";
-            
-            // Totals Row (Matching sample line 26)
             csv += ",,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalNetOut.toFixed(2) + "\n";
-            
-            // Stock Remaining Row (Matching sample line 27)
             csv += ",,,Stock Remaining,,,,," + stockRemaining.toFixed(2) + "\n";
 
             var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
             var link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = "Good_Mart_Enterprise_Inventory_" + new Date().toISOString().slice(0,10) + ".csv";
+            var dateSuffix = fromDate ? "_" + fromDate + "_to_" + (toDate || "latest") : "_" + new Date().toISOString().slice(0,10);
+            link.download = "Good_Mart_Enterprise_Inventory" + dateSuffix + ".csv";
             link.click();
-            showToast('Full Backup CSV ডাউনলোড হয়েছে', 'success');
+            showToast('Date-wise Full Backup CSV ডাউনলোড হয়েছে', 'success');
         }
 
         function importBackup(event) {
+            if (currentUser.role !== 'admin') {
+                showToast('শুধুমাত্র Admin ব্যাকআপ Import করতে পারবে', 'error');
+                event.target.value = "";
+                return;
+            }
             var file = event.target.files[0];
             if (!file) return;
             if (!confirm('Import করলে বর্তমান সব লেনদেন মুছে নতুন ডেটা বসবে। চালিয়ে যেতে চান?')) {
@@ -1652,6 +1670,11 @@
                         var stockOut = parseFloat(cols[5]) || 0;
                         var claim = parseFloat(cols[6]) || 0;
                         
+                        // If it's an Opening Balance row from previous month export, handle it as a Stock In entry
+                        if (type === "Opening Balance") {
+                            type = "Stock In";
+                        }
+
                         if (!date || !brand || !type) continue;
                         if (type !== "Stock In" && type !== "Stock Out" && type !== "Claim Received") continue;
                         
@@ -1675,6 +1698,7 @@
                     localStorage.setItem("gm_entries", JSON.stringify(newEntries));
                     showToast(newEntries.length + ' টি এন্ট্রি Import হয়েছে', 'success');
                     renderDashboard();
+                    renderHistoryTable();
                     event.target.value = "";
                 } catch (err) {
                     showToast('Import ব্যর্থ: ফাইল ফরম্যাট চেক করুন', 'error');
