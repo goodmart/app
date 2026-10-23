@@ -1117,18 +1117,27 @@
             showToast('ব্র্যান্ড মুছে ফেলা হয়েছে', 'success');
         }
 
+        // EXACT BRAND MATCH FIX FOR SALES OFFICERS DROPDOWN
         function handleBrandChange() {
             var selectedBrand = document.getElementById("brandSelect") ? document.getElementById("brandSelect").value : "";
-            if (!selectedBrand) return;
-            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
-            var brandSos = sos.filter(function(s) { return s.brand === selectedBrand; });
             var soSelect = document.getElementById("soSelect");
             if (!soSelect) return;
-            soSelect.innerHTML = "";
+            
+            soSelect.innerHTML = ""; // Clear existing options completely
+
+            if (!selectedBrand) return;
+
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            
+            // Strict exact brand filtering
+            var brandSos = sos.filter(function(s) { 
+                return s.brand && s.brand.trim().toLowerCase() === selectedBrand.trim().toLowerCase(); 
+            });
+
             if (brandSos.length === 0) {
                 var opt = document.createElement("option");
                 opt.value = "N/A";
-                opt.textContent = "No SO Found";
+                opt.textContent = "No SO Found for " + selectedBrand;
                 soSelect.appendChild(opt);
             } else {
                 for (var i = 0; i < brandSos.length; i++) {
@@ -1614,4 +1623,3 @@
     </script>
 </body>
 </html>
-
