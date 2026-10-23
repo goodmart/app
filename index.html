@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Good Mart Enterprise - Distribution Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root { --safe-bottom: env(safe-area-inset-bottom); }
+        body { -webkit-tap-highlight-color: transparent; }
+        .card-blue { background: linear-gradient(135deg, #1e3a8a, #1e40af); }
+        .card-indigo { background: linear-gradient(135deg, #312e81, #3730a3); }
+        .card-amber { background: linear-gradient(135deg, #78350f, #92400e); }
+        .card-emerald { background: linear-gradient(135deg, #064e3b, #065f46); }
+        
+        #toast {
+            position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(100px);
+            background: #1f2937; color: white; padding: 12px 20px; border-radius: 12px;
+            font-size: 14px; font-weight: 600; z-index: 9999; opacity: 0; transition: all 0.3s ease;
+            max-width: 90%; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        #toast.success { background: #059669; }
+        #toast.error { background: #dc2626; }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0; background: white;
+            border-top: 1px solid #e5e7eb; padding-bottom: var(--safe-bottom); z-index: 50;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+        }
+        .nav-item {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            padding: 8px 4px; font-size: 11px; font-weight: 600; color: #6b7280;
+            background: none; border: none; cursor: pointer;
+        }
+        .nav-item.active { color: #2563eb; }
+        .nav-item svg { width: 22px; height: 22px; margin-bottom: 2px; }
+
+        @media (min-width: 768px) {
+            .bottom-nav { display: none; }
+            #mainApp { padding-bottom: 20px !important; }
+        }
+        @media (max-width: 767px) {
+            #mainApp { padding-bottom: 80px !important; }
+            .desktop-tabs { display: none !important; }
+        }
+        @media print {
+            .bottom-nav, .desktop-tabs, #loginScreen, button, .no-print, #invoiceModal { display: none !important; }
+            body { background: white; }
+        }
+
+        #invoiceModal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10000;
+            display: none; align-items: center; justify-content: center; padding: 12px;
+        }
+        #invoiceModal.show { display: flex; }
+        #invoiceContent {
+            background: white; border-radius: 12px; max-width: 400px; width: 100%;
+            max-height: 92vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.35);
+        }
+        .invoice-box { border: 2px solid #1e40af; border-radius: 8px; overflow: hidden; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 antialiased min-h-screen">
+
+    <div id="toast"></div>
+
+    <!-- Invoice Modal -->
+    <div id="invoiceModal">
+        <div id="invoiceContent">
+            <div id="invoicePrintArea" class="p-4">
+                <div class="invoice-box">
+                    <div class="bg-blue-800 text-white text-center py-3 px-3">
+                        <h2 class="text-lg font-bold tracking-wide">Good Mart Enterprise</h2>
+                        <p class="text-[11px] mt-0.5 opacity-90">Kamarpara, Sadar, Rangpur</p>
+                        <p class="text-[11px] opacity-90">Proprietor: Md. Al Helal Khan</p>
+                        <p class="text-[11px] opacity-90">Mobile: 01714692560</p>
+                    </div>
+                    <div class="bg-blue-50 text-center py-1.5 border-b border-blue-200">
+                        <span class="text-xs font-bold text-blue-800 uppercase tracking-wider">Distribution Invoice / Memo</span>
+                    </div>
+                    <div class="p-3 text-sm space-y-1.5">
+                        <div class="flex justify-between border-b border-dashed border-gray-200 pb-1">
+                            <span class="text-gray-500">Invoice No</span>
+                            <span id="invNo" class="font-bold text-blue-700"></span>
+                        </div>
+                        <div class="flex justify-between"><span class="text-gray-500">Date</span><span id="invDate" class="font-semibold"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Brand</span><span id="invBrand" class="font-semibold"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Type</span><span id="invType" class="font-semibold"></span></div>
+                        <div class="flex justify-between" id="invSoRow"><span class="text-gray-500">Sales Officer</span><span id="invSo" class="font-semibold"></span></div>
+                        <div class="bg-gray-50 rounded-lg p-2.5 mt-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600 font-medium">Amount</span>
+                                <span id="invAmount" class="text-lg font-bold text-blue-800"></span>
+                            </div>
+                            <div class="flex justify-between mt-1" id="invClaimRow" style="display:none;">
+                                <span class="text-gray-600">Claim Amount</span>
+                                <span id="invClaim" class="font-bold text-amber-600"></span>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <p class="text-gray-500 text-xs">Particulars / Notes:</p>
+                            <p id="invDetails" class="text-sm font-medium mt-0.5 min-h-[20px]"></p>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-200 px-3 py-2 bg-gray-50 flex justify-between items-center text-xs">
+                        <div>
+                            <span class="text-gray-500">Prepared by:</span>
+                            <span id="invPreparedBy" class="font-bold text-gray-800 ml-1"></span>
+                        </div>
+                        <div class="text-gray-400 text-[10px]">Good Mart Enterprise</div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-4 pb-4 flex gap-2 no-print">
+                <button onclick="printInvoice()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-sm">🖨 Print</button>
+                <button onclick="downloadInvoiceImage()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-sm">📷 Image</button>
+                <button onclick="closeInvoiceModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-xl text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gray-900 px-4 py-8">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-center text-blue-600 mb-1">Good Mart Enterprise</h2>
+            <p class="text-center text-gray-500 mb-6 text-xs sm:text-sm">Distribution Management System</p>
+            <div class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                <p class="text-xs text-blue-800 font-bold mb-2">Quick Test Login:</p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="quickLogin('admin')" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg w-1/2 shadow">🔑 Admin</button>
+                    <button type="button" onclick="quickLogin('dabur_user')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg w-1/2 shadow">👤 Staff</button>
+                </div>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 text-xs font-bold mb-1 uppercase">Username</label>
+                    <input type="text" id="loginUsername" required class="w-full px-4 py-3 text-sm border rounded-xl" placeholder="Enter username">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-xs font-bold mb-1 uppercase">Password</label>
+                    <input type="password" id="loginPassword" required class="w-full px-4 py-3 text-sm border rounded-xl" placeholder="Enter password">
+                </div>
+                <p id="loginError" class="text-red-500 text-xs hidden font-bold text-center">ভুল ইউজারনেম বা পাসওয়ার্ড!</p>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Login</button>
+            </form>
+            <div class="mt-5 text-center">
+                <button onclick="resetDefaults()" class="text-xs text-red-500 hover:underline font-semibold">Reset App Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="container mx-auto px-3 sm:px-4 py-4 max-w-7xl hidden">
+        <div class="bg-white p-4 rounded-2xl shadow-md mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+                <h1 class="text-lg sm:text-xl font-bold text-blue-600">Good Mart Enterprise</h1>
+                <p class="text-gray-500 text-xs mt-0.5">
+                    <span id="currentUserDisplay" class="font-bold text-indigo-700"></span>
+                    <span id="currentUserRole" class="ml-1 uppercase bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-[10px] font-semibold"></span>
+                </p>
+            </div>
+            <div class="desktop-tabs flex flex-wrap gap-2">
+                <button onclick="switchTab('dashboard')" id="tabDashboardBtn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Transactions</button>
+                <button onclick="switchTab('soManager')" id="tabSoBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Sales Officers</button>
+                <button onclick="switchTab('brands')" id="tabBrandsBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Brands</button>
+                <button onclick="switchTab('analytics')" id="tabAnalyticsBtn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow">Analytics</button>
+                <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow">Logout</button>
+            </div>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div id="tabDashboard" class="space-y-4">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="p-4 rounded-2xl shadow-lg text-white card-blue">
+                    <span class="text-[10px] uppercase font-bold opacity-90 block">Total Stock In</span>
+                    <div id="summaryTotalIn" class="text-xl sm:text-2xl font-black mt-1">0.00</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-lg text-white card-indigo">
+                    <span class="text-[10px] uppercase font-bold opacity-90 block">Net Stock Out</span>
+                    <div id="summaryTotalOut" class="text-xl sm:text-2xl font-black mt-1">0.00</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-lg text-white card-amber">
+                    <span class="text-[10px] uppercase font-bold opacity-90 block">Pending Claim</span>
+                    <div id="summaryPendingClaim" class="text-xl sm:text-2xl font-black mt-1">0.00</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-lg text-white card-emerald">
+                    <span class="text-[10px] uppercase font-bold opacity-90 block">Stock Remaining</span>
+                    <div id="summaryRemainingStock" class="text-xl sm:text-2xl font-black mt-1">0.00</div>
+                </div>
+            </div>
+
+            <div class="bg-white shadow-md rounded-2xl p-4 sm:p-5">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="text-base font-bold text-gray-800">নতুন এন্ট্রি</h2>
+                    <span id="editModeBadge" class="hidden text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-bold">Editing...</span>
+                </div>
+                
+                <form id="invoiceForm" onsubmit="handleFormSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <input type="hidden" id="editEntryId" value="">
+                    <div>
+                        <label class="block text-xs font-bold mb-1 text-gray-600">তারিখ</label>
+                        <input type="date" id="date" required class="w-full px-3 py-2.5 text-sm border rounded-xl">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1 text-gray-600">ব্র্যান্ড</label>
+                        <select id="brandSelect" onchange="onBrandOrTypeChange()" required class="w-full px-3 py-2.5 text-sm border rounded-xl font-semibold"></select>
+                    </div>
+                    <div id="soFieldWrapper">
+                        <label class="block text-xs font-bold mb-1 text-gray-600">Sales Officer</label>
+                        <select id="soSelect" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-yellow-50 font-bold"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1 text-gray-600">Transaction Type</label>
+                        <select id="invoiceType" onchange="onBrandOrTypeChange()" class="w-full px-3 py-2.5 text-sm border rounded-xl">
+                            <option value="Stock In">Stock In</option>
+                            <option value="Stock Out">Stock Out</option>
+                            <option value="Claim Received">Claim Received</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1 text-gray-600">Invoice No. (Auto)</label>
+                        <input type="text" id="invoiceNumber" readonly class="w-full px-3 py-2.5 text-sm border rounded-xl bg-blue-50 font-bold text-blue-700">
+                    </div>
+
+                    <div id="groupStockIn" class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-blue-50 p-3 rounded-xl">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">বিবরণ</label>
+                            <input type="text" id="detailsIn" placeholder="Stock In remarks" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Stock In Amount (TK)</label>
+                            <input type="number" id="totalCredit" step="0.01" placeholder="0.00" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white font-bold text-blue-700">
+                        </div>
+                    </div>
+                    <div id="groupStockOut" class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-indigo-50 p-3 rounded-xl hidden">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Stock Out Amount (TK)</label>
+                            <input type="number" id="totalDebit" step="0.01" placeholder="0.00" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white font-bold text-indigo-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Claim Amount (TK)</label>
+                            <input type="number" id="claimAmount" step="0.01" placeholder="0.00" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white font-bold text-amber-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1">বিবরণ</label>
+                            <input type="text" id="outRemarks" placeholder="Delivery notes" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white">
+                        </div>
+                    </div>
+                    <div id="groupClaimRec" class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50 p-3 rounded-xl hidden">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Claim Received Amount (TK)</label>
+                            <input type="number" id="claimReceivedAmount" step="0.01" placeholder="0.00" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white font-bold text-emerald-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1">Reference / Note</label>
+                            <input type="text" id="claimRecRemarks" placeholder="Settlement ref" class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white">
+                        </div>
+                    </div>
+                    <div class="lg:col-span-5 flex gap-2 mt-1">
+                        <button type="submit" id="submitBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Submit Entry</button>
+                        <button type="button" id="cancelEditBtn" onclick="cancelEdit()" class="hidden bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3.5 px-4 rounded-xl text-sm">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Filter + Backup -->
+            <div class="bg-white p-3 rounded-2xl shadow-sm space-y-3">
+                <div class="flex flex-wrap gap-2 items-center">
+                    <input type="date" id="filterFrom" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl">
+                    <span class="text-xs text-gray-500">থেকে</span>
+                    <input type="date" id="filterTo" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl">
+                    <select id="filterBrand" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl"><option value="">All Brands</option></select>
+                    <select id="filterType" onchange="renderDashboard()" class="px-3 py-2 text-sm border rounded-xl">
+                        <option value="">All Types</option>
+                        <option value="Stock In">Stock In</option>
+                        <option value="Stock Out">Stock Out</option>
+                        <option value="Claim Received">Claim Received</option>
+                    </select>
+                    <input type="text" id="searchInput" oninput="renderDashboard()" placeholder="Invoice No / SO / Details..." class="flex-1 min-w-[140px] px-3 py-2 text-sm border rounded-xl">
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="exportFullBackup()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded-xl">↓ Full Backup (CSV)</button>
+                    <button onclick="backupToGoogleDrive()" id="driveBackupBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl">☁ Backup to Google Drive</button>
+                    <label class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-xl cursor-pointer">
+                        ↑ Import Backup
+                        <input type="file" id="importFile" accept=".csv" class="hidden" onchange="importBackup(event)">
+                    </label>
+                    <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold py-2 px-4 rounded-xl">🖨 Print</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-md overflow-hidden">
+                <h3 class="font-bold text-sm text-gray-800 mb-3">Recent Transactions</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs sm:text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-600 uppercase text-[10px]">
+                                <th class="py-2.5 px-3 text-left">Date</th>
+                                <th class="py-2.5 px-3 text-left">Invoice</th>
+                                <th class="py-2.5 px-3 text-left">Brand</th>
+                                <th class="py-2.5 px-3 text-left">SO</th>
+                                <th class="py-2.5 px-3 text-left">Type</th>
+                                <th class="py-2.5 px-3 text-right">In</th>
+                                <th class="py-2.5 px-3 text-right">Out</th>
+                                <th class="py-2.5 px-3 text-right">Claim</th>
+                                <th class="py-2.5 px-3 text-center no-print">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="entriesTableBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+                <p id="noEntriesMsg" class="text-center text-gray-400 text-sm py-6 hidden">কোনো লেনদেন পাওয়া যায়নি</p>
+            </div>
+        </div>
+
+        <!-- SO MANAGER -->
+        <div id="tabSoManager" class="space-y-4 hidden">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
+                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">Sales Officer ম্যানেজমেন্ট</h2>
+                <form onsubmit="handleCreateSO(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Assigned Brand</label>
+                        <select id="soBrandSelect" required class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">SO Name</label>
+                        <input type="text" id="soNameInput" placeholder="e.g. SO - Rahim" required class="w-full px-3 py-2.5 text-sm border rounded-xl bg-white">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow">Add Sales Officer</button>
+                    </div>
+                </form>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs sm:text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-600 uppercase text-[10px]">
+                                <th class="py-2.5 px-3 text-left">Brand</th>
+                                <th class="py-2.5 px-3 text-left">Sales Officer</th>
+                                <th class="py-2.5 px-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="soListTableBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- BRANDS -->
+        <div id="tabBrands" class="space-y-4 hidden">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
+                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">ব্র্যান্ড ম্যানেজমেন্ট</h2>
+                <form onsubmit="handleAddBrand(event)" class="flex gap-2 mb-5">
+                    <input type="text" id="newBrandInput" placeholder="নতুন ব্র্যান্ডের নাম" required class="flex-1 px-4 py-2.5 text-sm border rounded-xl">
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm shadow">Add Brand</button>
+                </form>
+                <div id="brandsList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS -->
+        <div id="tabAnalytics" class="space-y-4 hidden">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-base font-bold text-gray-800">Brand-wise Analytics</h2>
+                    <div class="flex gap-2">
+                        <button onclick="exportAnalyticsCSV()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-3 rounded-xl">↓ CSV</button>
+                        <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold py-2 px-3 rounded-xl">🖨 Print</button>
+                    </div>
+                </div>
+                <div id="analyticsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Nav -->
+    <div class="bottom-nav flex md:hidden" id="bottomNav">
+        <button type="button" data-tab="dashboard" class="nav-item active">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            Transactions
+        </button>
+        <button type="button" data-tab="soManager" class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            SO
+        </button>
+        <button type="button" data-tab="brands" class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            Brands
+        </button>
+        <button type="button" data-tab="analytics" class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            Analytics
+        </button>
+        <button type="button" data-tab="logout" class="nav-item text-red-500">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            Logout
+        </button>
+    </div>
+
+    <script>
+        // ========== GOOGLE DRIVE CONFIG ==========
+        const GOOGLE_CLIENT_ID = "19787863112-dugnk8d8tnt84c4et94bnq9m0n1j4a8n.apps.googleusercontent.com";
+        const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+        let googleAccessToken = null;
+        let tokenClient = null;
+
+        function initStorage() {
+            if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]));
+            if (!localStorage.getItem("gm_users")) {
+                localStorage.setItem("gm_users", JSON.stringify([
+                    { username: "admin", pass: "admin123", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
+                    { username: "dabur_user", pass: "user123", role: "user", brands: ["Dabur"] }
+                ]));
+            }
+            if (!localStorage.getItem("gm_sos")) {
+                localStorage.setItem("gm_sos", JSON.stringify([
+                    { id: 'so_1', brand: 'Dabur', name: 'SO - Rahim' },
+                    { id: 'so_2', brand: 'Dabur', name: 'SO - Karim' }
+                ]));
+            }
+            if (!localStorage.getItem("gm_entries")) localStorage.setItem("gm_entries", JSON.stringify([]));
+            if (!localStorage.getItem("gm_invoice_counters")) localStorage.setItem("gm_invoice_counters", JSON.stringify({}));
+        }
+        initStorage();
+
+        var currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || null;
+        var lastSavedEntry = null;
+
+        // ========== BOTTOM NAV ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            var bottomNav = document.getElementById('bottomNav');
+            if (bottomNav) {
+                bottomNav.addEventListener('click', function(e) {
+                    var btn = e.target.closest('[data-tab]');
+                    if (!btn) return;
+                    if (btn.getAttribute('data-hidden') === 'true' || btn.style.display === 'none') return;
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var tab = btn.getAttribute('data-tab');
+                    if (tab === 'logout') {
+                        handleLogout();
+                        return;
+                    }
+
+                    var items = bottomNav.querySelectorAll('.nav-item');
+                    for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+                    btn.classList.add('active');
+                    switchTab(tab);
+                });
+            }
+
+            // Init Google Token Client
+            if (window.google && google.accounts) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: DRIVE_SCOPE,
+                    callback: function(tokenResponse) {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            googleAccessToken = tokenResponse.access_token;
+                            uploadBackupToDrive();
+                        } else {
+                            showToast('Google অনুমতি পাওয়া যায়নি', 'error');
+                        }
+                    }
+                });
+            }
+        });
+
+        window.onload = function() {
+            if (currentUser) showMainApp();
+        };
+
+        function showToast(msg, type) {
+            type = type || 'success';
+            var t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'show ' + type;
+            setTimeout(function() { t.className = ''; }, 3000);
+        }
+
+        // ========== GOOGLE DRIVE BACKUP ==========
+        function backupToGoogleDrive() {
+            if (!tokenClient) {
+                showToast('Google API লোড হয়নি। পেজ রিফ্রেশ করুন', 'error');
+                return;
+            }
+            // Request access token
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+
+        function getBackupCSVContent() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var csv = "Date,Brand,Invoice Type,Invoice Number,Sales Officer,Stock In,Stock Out,Claim,Claim Received,Net Stock Out,Details\n";
+            var totalIn = 0, totalOut = 0, totalClaim = 0, totalClaimRec = 0;
+            entries.sort(function(a, b) { return a.date.localeCompare(b.date); });
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                var netOut = (e.debit || 0) - (e.claim || 0);
+                totalIn += (e.credit || 0);
+                totalOut += (e.debit || 0);
+                totalClaim += (e.claim || 0);
+                totalClaimRec += (e.claimReceived || 0);
+                csv += e.date + "," + e.brand + "," + e.type + "," + (e.invoiceNum || "") + "," + (e.so || "N/A") + "," +
+                       (e.credit || "") + "," + (e.debit || "") + "," + (e.claim || "") + "," + (e.claimReceived || "") + "," +
+                       (e.type === "Stock Out" ? netOut.toFixed(2) : "") + "," +
+                       '"' + (e.details || "").replace(/"/g, '""') + '"\n';
+            }
+            var netStockOut = totalOut - totalClaim;
+            var stockRemaining = totalIn - totalOut;
+            csv += "\n";
+            csv += ",,,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalClaimRec.toFixed(2) + "," + netStockOut.toFixed(2) + ",\n";
+            csv += ",,,Stock Remaining,,,,,,," + stockRemaining.toFixed(2) + "\n";
+            return csv;
+        }
+
+        function uploadBackupToDrive() {
+            if (!googleAccessToken) {
+                showToast('Google টোকেন নেই', 'error');
+                return;
+            }
+
+            var csvContent = getBackupCSVContent();
+            var fileName = "GoodMart_Backup_" + new Date().toISOString().slice(0,10) + ".csv";
+            var metadata = {
+                name: fileName,
+                mimeType: 'text/csv'
+            };
+
+            var form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', new Blob(["\uFEFF" + csvContent], { type: 'text/csv' }));
+
+            showToast('Google Drive-এ আপলোড হচ্ছে...', 'success');
+
+            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + googleAccessToken
+                },
+                body: form
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error('Upload failed: ' + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                showToast('সফল! Google Drive-এ সেভ হয়েছে: ' + fileName, 'success');
+                console.log('Uploaded file ID:', data.id);
+            })
+            .catch(function(err) {
+                console.error(err);
+                showToast('আপলোড ব্যর্থ। আবার চেষ্টা করুন', 'error');
+            });
+        }
+
+        function resetDefaults() {
+            if (!confirm('সব ডেটা মুছে ডিফল্ট সেটিংস ফিরে আসবে। নিশ্চিত?')) return;
+            localStorage.clear();
+            initStorage();
+            showToast('ডিফল্ট সেটিংস রিস্টোর হয়েছে', 'success');
+            setTimeout(function() { location.reload(); }, 800);
+        }
+
+        function quickLogin(username) {
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
+            var found = users.find(function(x) { return x.username.toLowerCase() === username.toLowerCase(); });
+            if (found) {
+                currentUser = found;
+                localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+                showMainApp();
+                showToast('লগইন সফল!', 'success');
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            var u = document.getElementById("loginUsername").value.trim().toLowerCase();
+            var p = document.getElementById("loginPassword").value.trim();
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
+            var found = users.find(function(x) { return x.username.toLowerCase() === u && x.pass === p; });
+            if (found) {
+                currentUser = found;
+                localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+                showMainApp();
+                showToast('লগইন সফল!', 'success');
+            } else {
+                document.getElementById("loginError").classList.remove("hidden");
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem("gm_logged_user");
+            currentUser = null;
+            document.getElementById("mainApp").classList.add("hidden");
+            document.getElementById("loginScreen").classList.remove("hidden");
+            showToast('লগআউট হয়েছে', 'success');
+        }
+
+        function showMainApp() {
+            document.getElementById("loginScreen").classList.add("hidden");
+            document.getElementById("mainApp").classList.remove("hidden");
+            document.getElementById("currentUserDisplay").innerText = currentUser.username;
+            document.getElementById("currentUserRole").innerText = currentUser.role;
+            document.getElementById("date").valueAsDate = new Date();
+
+            var brandsDesktopBtn = document.getElementById('tabBrandsBtn');
+            var brandsMobileBtn = document.querySelector('#bottomNav [data-tab="brands"]');
+
+            if (currentUser.role !== 'admin') {
+                if (brandsDesktopBtn) brandsDesktopBtn.classList.add('hidden');
+                if (brandsMobileBtn) {
+                    brandsMobileBtn.style.display = 'none';
+                    brandsMobileBtn.setAttribute('data-hidden', 'true');
+                }
+            } else {
+                if (brandsDesktopBtn) brandsDesktopBtn.classList.remove('hidden');
+                if (brandsMobileBtn) {
+                    brandsMobileBtn.style.display = '';
+                    brandsMobileBtn.removeAttribute('data-hidden');
+                }
+            }
+
+            loadAllBrands();
+            populateFilterBrand();
+            renderSoList();
+            onBrandOrTypeChange();
+            renderDashboard();
+        }
+
+        function getBrandCode(brandName) {
+            if (!brandName) return "XXX";
+            return brandName.substring(0, 3).toUpperCase();
+        }
+
+        function generateInvoiceNumber() {
+            var brandSelect = document.getElementById("brandSelect");
+            if (!brandSelect) return;
+            var brand = brandSelect.value || "XXX";
+            var code = getBrandCode(brand);
+            var counters = JSON.parse(localStorage.getItem("gm_invoice_counters") || "{}");
+            var nextNum = (counters[brand] || 0) + 1;
+            var invInput = document.getElementById("invoiceNumber");
+            if (invInput) invInput.value = code + "-" + String(nextNum).padStart(4, "0");
+        }
+
+        function incrementInvoiceCounter(brand) {
+            var counters = JSON.parse(localStorage.getItem("gm_invoice_counters") || "{}");
+            counters[brand] = (counters[brand] || 0) + 1;
+            localStorage.setItem("gm_invoice_counters", JSON.stringify(counters));
+        }
+
+        function onBrandOrTypeChange() {
+            handleTypeChange();
+            generateInvoiceNumber();
+        }
+
+        function loadAllBrands() {
+            var brands = JSON.parse(localStorage.getItem("gm_brands"));
+            if (!brands || brands.length === 0) {
+                brands = ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"];
+                localStorage.setItem("gm_brands", JSON.stringify(brands));
+            }
+            var allowed = [];
+            if (currentUser && currentUser.role === 'admin') allowed = brands;
+            else if (currentUser && currentUser.brands) {
+                for (var i = 0; i < brands.length; i++) {
+                    if (currentUser.brands.indexOf(brands[i]) !== -1) allowed.push(brands[i]);
+                }
+            } else allowed = brands;
+            if (allowed.length === 0) allowed = brands;
+
+            var brandSelect = document.getElementById("brandSelect");
+            if (brandSelect) {
+                brandSelect.innerHTML = "";
+                for (var i = 0; i < allowed.length; i++) {
+                    var opt = document.createElement("option");
+                    opt.value = allowed[i];
+                    opt.textContent = allowed[i];
+                    brandSelect.appendChild(opt);
+                }
+            }
+            var soBrandSelect = document.getElementById("soBrandSelect");
+            if (soBrandSelect) {
+                soBrandSelect.innerHTML = "";
+                for (var i = 0; i < allowed.length; i++) {
+                    var opt2 = document.createElement("option");
+                    opt2.value = allowed[i];
+                    opt2.textContent = allowed[i];
+                    soBrandSelect.appendChild(opt2);
+                }
+            }
+            handleBrandChange();
+        }
+
+        function switchTab(tabName) {
+            try {
+                var tabs = ['tabDashboard', 'tabSoManager', 'tabBrands', 'tabAnalytics'];
+                for (var i = 0; i < tabs.length; i++) {
+                    var el = document.getElementById(tabs[i]);
+                    if (el) el.classList.add('hidden');
+                }
+                
+                var btns = ['tabDashboardBtn', 'tabSoBtn', 'tabBrandsBtn', 'tabAnalyticsBtn'];
+                for (var i = 0; i < btns.length; i++) {
+                    var el = document.getElementById(btns[i]);
+                    if (el) el.className = "bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg text-xs shadow";
+                }
+
+                if (tabName === 'dashboard') {
+                    document.getElementById("tabDashboard").classList.remove("hidden");
+                    var btn = document.getElementById("tabDashboardBtn");
+                    if (btn) btn.className = "bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
+                    loadAllBrands();
+                    onBrandOrTypeChange();
+                    renderDashboard();
+                } else if (tabName === 'soManager') {
+                    document.getElementById("tabSoManager").classList.remove("hidden");
+                    var btn = document.getElementById("tabSoBtn");
+                    if (btn) btn.className = "bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
+                    loadAllBrands();
+                    renderSoList();
+                } else if (tabName === 'brands') {
+                    if (currentUser.role !== 'admin') {
+                        showToast('শুধু Admin ব্র্যান্ড ম্যানেজ করতে পারবে', 'error');
+                        switchTab('dashboard');
+                        return;
+                    }
+                    document.getElementById("tabBrands").classList.remove("hidden");
+                    var btn = document.getElementById("tabBrandsBtn");
+                    if (btn) btn.className = "bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
+                    renderBrands();
+                } else if (tabName === 'analytics') {
+                    document.getElementById("tabAnalytics").classList.remove("hidden");
+                    var btn = document.getElementById("tabAnalyticsBtn");
+                    if (btn) btn.className = "bg-purple-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow";
+                    renderAnalytics();
+                }
+            } catch (err) {
+                console.error("switchTab error:", err);
+                showToast('ট্যাব পরিবর্তনে সমস্যা হয়েছে', 'error');
+            }
+        }
+
+        function populateFilterBrand() {
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var allowed = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var sel = document.getElementById("filterBrand");
+            if (!sel) return;
+            sel.innerHTML = '<option value="">All Brands</option>';
+            for (var i = 0; i < allowed.length; i++) {
+                var opt = document.createElement("option");
+                opt.value = allowed[i];
+                opt.textContent = allowed[i];
+                sel.appendChild(opt);
+            }
+        }
+
+        function handleAddBrand(e) {
+            e.preventDefault();
+            var name = document.getElementById("newBrandInput").value.trim();
+            if (!name) return;
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            if (brands.indexOf(name) !== -1) {
+                showToast('এই ব্র্যান্ড ইতিমধ্যে আছে', 'error');
+                return;
+            }
+            brands.push(name);
+            localStorage.setItem("gm_brands", JSON.stringify(brands));
+            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
+            for (var i = 0; i < users.length; i++) {
+                if (users[i].role === 'admin') users[i].brands = brands;
+            }
+            localStorage.setItem("gm_users", JSON.stringify(users));
+            currentUser.brands = brands;
+            localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+            document.getElementById("newBrandInput").value = "";
+            loadAllBrands();
+            populateFilterBrand();
+            renderBrands();
+            showToast('ব্র্যান্ড যোগ হয়েছে', 'success');
+        }
+
+        function renderBrands() {
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var container = document.getElementById("brandsList");
+            if (!container) return;
+            container.innerHTML = "";
+            for (var i = 0; i < brands.length; i++) {
+                var div = document.createElement("div");
+                div.className = "flex items-center justify-between bg-gray-50 border rounded-xl px-4 py-3";
+                div.innerHTML = '<span class="font-bold text-sm">' + brands[i] + '</span><button onclick="deleteBrand(\'' + brands[i] + '\')" class="text-red-500 text-xs font-bold">Delete</button>';
+                container.appendChild(div);
+            }
+        }
+
+        function deleteBrand(name) {
+            if (!confirm('"' + name + '" ব্র্যান্ড মুছে ফেলবেন?')) return;
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            brands = brands.filter(function(b) { return b !== name; });
+            localStorage.setItem("gm_brands", JSON.stringify(brands));
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            sos = sos.filter(function(s) { return s.brand !== name; });
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
+            loadAllBrands();
+            populateFilterBrand();
+            renderBrands();
+            renderSoList();
+            showToast('ব্র্যান্ড মুছে ফেলা হয়েছে', 'success');
+        }
+
+        function handleBrandChange() {
+            var selectedBrand = document.getElementById("brandSelect") ? document.getElementById("brandSelect").value : "";
+            if (!selectedBrand) return;
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            var brandSos = sos.filter(function(s) { return s.brand === selectedBrand; });
+            var soSelect = document.getElementById("soSelect");
+            if (!soSelect) return;
+            soSelect.innerHTML = "";
+            if (brandSos.length === 0) {
+                var opt = document.createElement("option");
+                opt.value = "N/A";
+                opt.textContent = "No SO Found";
+                soSelect.appendChild(opt);
+            } else {
+                for (var i = 0; i < brandSos.length; i++) {
+                    var opt = document.createElement("option");
+                    opt.value = brandSos[i].name;
+                    opt.textContent = brandSos[i].name;
+                    soSelect.appendChild(opt);
+                }
+            }
+        }
+
+        function handleCreateSO(e) {
+            e.preventDefault();
+            var brand = document.getElementById("soBrandSelect").value;
+            var name = document.getElementById("soNameInput").value.trim();
+            if (!name || !brand) {
+                showToast('ব্র্যান্ড ও SO নাম দিতে হবে', 'error');
+                return;
+            }
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            sos.push({ id: 'so_' + Date.now(), brand: brand, name: name });
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
+            document.getElementById("soNameInput").value = "";
+            renderSoList();
+            handleBrandChange();
+            showToast('Sales Officer যোগ হয়েছে', 'success');
+        }
+
+        function renderSoList() {
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            var tbody = document.getElementById("soListTableBody");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            if (sos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="py-6 text-center text-gray-400">কোনো SO নেই</td></tr>';
+                return;
+            }
+            for (var i = 0; i < sos.length; i++) {
+                var tr = document.createElement("tr");
+                tr.innerHTML = '<td class="py-3 px-3 font-semibold">' + sos[i].brand + '</td><td class="py-3 px-3 font-bold text-yellow-800">' + sos[i].name + '</td><td class="py-3 px-3 text-center"><button onclick="deleteSO(\'' + sos[i].id + '\')" class="text-red-500 font-bold text-xs">Delete</button></td>';
+                tbody.appendChild(tr);
+            }
+        }
+
+        function deleteSO(id) {
+            if (!confirm('এই Sales Officer মুছে ফেলবেন?')) return;
+            var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
+            sos = sos.filter(function(s) { return s.id !== id; });
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
+            renderSoList();
+            handleBrandChange();
+            showToast('SO মুছে ফেলা হয়েছে', 'success');
+        }
+
+        function handleTypeChange() {
+            var typeEl = document.getElementById("invoiceType");
+            if (!typeEl) return;
+            var type = typeEl.value;
+            var gIn = document.getElementById("groupStockIn");
+            var gOut = document.getElementById("groupStockOut");
+            var gClaim = document.getElementById("groupClaimRec");
+            if (gIn) gIn.classList.add("hidden");
+            if (gOut) gOut.classList.add("hidden");
+            if (gClaim) gClaim.classList.add("hidden");
+            var soWrapper = document.getElementById("soFieldWrapper");
+            if (type === "Stock In") {
+                if (gIn) gIn.classList.remove("hidden");
+                if (soWrapper) soWrapper.classList.add("hidden");
+            } else if (type === "Stock Out") {
+                if (gOut) gOut.classList.remove("hidden");
+                if (soWrapper) soWrapper.classList.remove("hidden");
+            } else if (type === "Claim Received") {
+                if (gClaim) gClaim.classList.remove("hidden");
+                if (soWrapper) soWrapper.classList.remove("hidden");
+            }
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var type = document.getElementById("invoiceType").value;
+            var editId = document.getElementById("editEntryId").value;
+            var brand = document.getElementById("brandSelect").value;
+            var soValue = "N/A";
+            if (type === "Stock Out" || type === "Claim Received") {
+                soValue = document.getElementById("soSelect").value || "N/A";
+            }
+            var invNo = document.getElementById("invoiceNumber").value;
+
+            var newEntry = {
+                id: editId || 'entry_' + Date.now(),
+                date: document.getElementById("date").value,
+                brand: brand,
+                so: soValue,
+                type: type,
+                invoiceNum: invNo,
+                credit: type === 'Stock In' ? parseFloat(document.getElementById("totalCredit").value || 0) : 0,
+                debit: type === 'Stock Out' ? parseFloat(document.getElementById("totalDebit").value || 0) : 0,
+                claim: type === 'Stock Out' ? parseFloat(document.getElementById("claimAmount").value || 0) : 0,
+                claimReceived: type === 'Claim Received' ? parseFloat(document.getElementById("claimReceivedAmount").value || 0) : 0,
+                details: type === 'Stock In' ? document.getElementById("detailsIn").value : (type === 'Stock Out' ? document.getElementById("outRemarks").value : document.getElementById("claimRecRemarks").value)
+            };
+
+            if (type === 'Stock In' && newEntry.credit <= 0) { showToast('Stock In Amount দিন', 'error'); return; }
+            if (type === 'Stock Out' && newEntry.debit <= 0) { showToast('Stock Out Amount দিন', 'error'); return; }
+            if (type === 'Claim Received' && newEntry.claimReceived <= 0) { showToast('Claim Received Amount দিন', 'error'); return; }
+
+            if (editId) {
+                for (var i = 0; i < entries.length; i++) {
+                    if (entries[i].id === editId) entries[i] = newEntry;
+                }
+                showToast('এন্ট্রি আপডেট হয়েছে', 'success');
+            } else {
+                incrementInvoiceCounter(brand);
+                entries.push(newEntry);
+                showToast('এন্ট্রি সেভ হয়েছে', 'success');
+                lastSavedEntry = newEntry;
+                showInvoiceModal(newEntry);
+            }
+            localStorage.setItem("gm_entries", JSON.stringify(entries));
+            cancelEdit();
+            renderDashboard();
+        }
+
+        function showInvoiceModal(entry) {
+            document.getElementById("invNo").textContent = entry.invoiceNum;
+            document.getElementById("invDate").textContent = entry.date;
+            document.getElementById("invBrand").textContent = entry.brand;
+            document.getElementById("invType").textContent = entry.type;
+            document.getElementById("invSo").textContent = entry.so || "N/A";
+            document.getElementById("invDetails").textContent = entry.details || "-";
+            var amount = entry.type === "Stock In" ? entry.credit : (entry.type === "Stock Out" ? entry.debit : entry.claimReceived);
+            document.getElementById("invAmount").textContent = amount.toLocaleString('en-US', {minimumFractionDigits: 2}) + " TK";
+            if (entry.type === "Stock Out" && entry.claim > 0) {
+                document.getElementById("invClaimRow").style.display = "flex";
+                document.getElementById("invClaim").textContent = entry.claim.toLocaleString('en-US', {minimumFractionDigits: 2}) + " TK";
+            } else {
+                document.getElementById("invClaimRow").style.display = "none";
+            }
+            document.getElementById("invSoRow").style.display = entry.type === "Stock In" ? "none" : "flex";
+            document.getElementById("invPreparedBy").textContent = currentUser.username + " (" + currentUser.role.toUpperCase() + ")";
+            document.getElementById("invoiceModal").classList.add("show");
+        }
+
+        function closeInvoiceModal() {
+            document.getElementById("invoiceModal").classList.remove("show");
+            generateInvoiceNumber();
+        }
+
+        function printInvoice() {
+            var printContent = document.getElementById("invoicePrintArea").innerHTML;
+            var win = window.open('', '', 'width=420,height=650');
+            win.document.write('<html><head><title>Invoice - Good Mart</title><style>body{font-family:sans-serif;padding:10px;margin:0;} .invoice-box{border:2px solid #1e40af;border-radius:8px;overflow:hidden;} .bg-blue-800{background:#1e40af;color:white;text-align:center;padding:12px;} .bg-blue-50{background:#eff6ff;text-align:center;padding:6px;border-bottom:1px solid #bfdbfe;} .flex{display:flex;justify-content:space-between;margin:4px 0;} .font-bold{font-weight:bold;} .text-blue-700{color:#1d4ed8;} .bg-gray-50{background:#f9fafb;padding:8px;border-radius:6px;}</style></head><body>' + printContent + '</body></html>');
+            win.document.close();
+            setTimeout(function(){ win.print(); }, 300);
+        }
+
+        function downloadInvoiceImage() {
+            html2canvas(document.getElementById("invoicePrintArea"), { scale: 2, backgroundColor: "#ffffff" }).then(function(canvas) {
+                var link = document.createElement("a");
+                link.download = "Invoice_" + (lastSavedEntry ? lastSavedEntry.invoiceNum : "GM") + ".png";
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+                showToast('ইনভয়েস ছবি ডাউনলোড হয়েছে', 'success');
+            });
+        }
+
+        function editEntry(id) {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var e = null;
+            for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
+            if (!e) return;
+            document.getElementById("editEntryId").value = e.id;
+            document.getElementById("date").value = e.date;
+            document.getElementById("brandSelect").value = e.brand;
+            handleBrandChange();
+            document.getElementById("invoiceType").value = e.type;
+            handleTypeChange();
+            setTimeout(function() {
+                if (e.type === "Stock Out" || e.type === "Claim Received") {
+                    document.getElementById("soSelect").value = e.so;
+                }
+            }, 50);
+            document.getElementById("invoiceNumber").value = e.invoiceNum;
+            if (e.type === 'Stock In') {
+                document.getElementById("totalCredit").value = e.credit || '';
+                document.getElementById("detailsIn").value = e.details || '';
+            } else if (e.type === 'Stock Out') {
+                document.getElementById("totalDebit").value = e.debit || '';
+                document.getElementById("claimAmount").value = e.claim || '';
+                document.getElementById("outRemarks").value = e.details || '';
+            } else {
+                document.getElementById("claimReceivedAmount").value = e.claimReceived || '';
+                document.getElementById("claimRecRemarks").value = e.details || '';
+            }
+            document.getElementById("editModeBadge").classList.remove("hidden");
+            document.getElementById("submitBtn").textContent = "Update Entry";
+            document.getElementById("cancelEditBtn").classList.remove("hidden");
+            document.getElementById("invoiceForm").scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            document.getElementById("editEntryId").value = "";
+            document.getElementById("editModeBadge").classList.add("hidden");
+            document.getElementById("submitBtn").textContent = "Submit Entry";
+            document.getElementById("cancelEditBtn").classList.add("hidden");
+            document.getElementById("totalCredit").value = "";
+            document.getElementById("totalDebit").value = "";
+            document.getElementById("claimAmount").value = "";
+            document.getElementById("claimReceivedAmount").value = "";
+            document.getElementById("detailsIn").value = "";
+            document.getElementById("outRemarks").value = "";
+            document.getElementById("claimRecRemarks").value = "";
+            document.getElementById("invoiceType").value = "Stock In";
+            onBrandOrTypeChange();
+        }
+
+        function deleteEntry(id) {
+            if (!confirm('এই এন্ট্রি মুছে ফেলবেন?')) return;
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            entries = entries.filter(function(e) { return e.id !== id; });
+            localStorage.setItem("gm_entries", JSON.stringify(entries));
+            renderDashboard();
+            showToast('এন্ট্রি মুছে ফেলা হয়েছে', 'success');
+        }
+
+        function renderDashboard() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var filtered = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
+
+            var search = (document.getElementById("searchInput") ? document.getElementById("searchInput").value : "").toLowerCase();
+            var fBrand = document.getElementById("filterBrand") ? document.getElementById("filterBrand").value : "";
+            var fType = document.getElementById("filterType") ? document.getElementById("filterType").value : "";
+            var fFrom = document.getElementById("filterFrom") ? document.getElementById("filterFrom").value : "";
+            var fTo = document.getElementById("filterTo") ? document.getElementById("filterTo").value : "";
+
+            if (search) {
+                filtered = filtered.filter(function(e) {
+                    return (e.invoiceNum || "").toLowerCase().indexOf(search) !== -1 ||
+                           (e.so || "").toLowerCase().indexOf(search) !== -1 ||
+                           (e.details || "").toLowerCase().indexOf(search) !== -1 ||
+                           (e.brand || "").toLowerCase().indexOf(search) !== -1;
+                });
+            }
+            if (fBrand) filtered = filtered.filter(function(e) { return e.brand === fBrand; });
+            if (fType) filtered = filtered.filter(function(e) { return e.type === fType; });
+            if (fFrom) filtered = filtered.filter(function(e) { return e.date >= fFrom; });
+            if (fTo) filtered = filtered.filter(function(e) { return e.date <= fTo; });
+
+            var allAllowed = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
+            var totalIn = 0, totalOut = 0, totalClaimSubmitted = 0, totalClaimReceived = 0;
+            for (var i = 0; i < allAllowed.length; i++) {
+                totalIn += (allAllowed[i].credit || 0);
+                totalOut += (allAllowed[i].debit || 0);
+                totalClaimSubmitted += (allAllowed[i].claim || 0);
+                totalClaimReceived += (allAllowed[i].claimReceived || 0);
+            }
+            var pendingClaim = totalClaimSubmitted - totalClaimReceived;
+            var stockRemaining = totalIn - totalOut;
+
+            document.getElementById("summaryTotalIn").innerText = totalIn.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById("summaryTotalOut").innerText = totalOut.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById("summaryPendingClaim").innerText = pendingClaim.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            document.getElementById("summaryRemainingStock").innerText = stockRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+            var tbody = document.getElementById("entriesTableBody");
+            tbody.innerHTML = "";
+            if (filtered.length === 0) {
+                document.getElementById("noEntriesMsg").classList.remove("hidden");
+            } else {
+                document.getElementById("noEntriesMsg").classList.add("hidden");
+                filtered = filtered.slice().reverse();
+                for (var i = 0; i < filtered.length; i++) {
+                    var e = filtered[i];
+                    var claimDisplay = '-';
+                    if (e.claim) claimDisplay = e.claim.toFixed(2);
+                    else if (e.claimReceived) claimDisplay = '+' + e.claimReceived.toFixed(2);
+                    var typeClass = e.type === 'Stock In' ? 'bg-blue-100 text-blue-800' : (e.type === 'Stock Out' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800');
+                    var tr = document.createElement("tr");
+                    tr.className = "hover:bg-gray-50";
+                    tr.innerHTML = '<td class="py-2.5 px-3 text-gray-600">' + e.date + '</td>' +
+                        '<td class="py-2.5 px-3 font-bold text-blue-700 text-xs">' + (e.invoiceNum || '-') + '</td>' +
+                        '<td class="py-2.5 px-3 font-bold">' + e.brand + '</td>' +
+                        '<td class="py-2.5 px-3 font-semibold text-yellow-800 text-xs">' + (e.so || 'N/A') + '</td>' +
+                        '<td class="py-2.5 px-3"><span class="px-2 py-0.5 text-[10px] font-bold rounded-full ' + typeClass + '">' + e.type + '</span></td>' +
+                        '<td class="py-2.5 px-3 text-right font-bold text-blue-600">' + (e.credit ? e.credit.toFixed(2) : '-') + '</td>' +
+                        '<td class="py-2.5 px-3 text-right font-bold text-indigo-600">' + (e.debit ? e.debit.toFixed(2) : '-') + '</td>' +
+                        '<td class="py-2.5 px-3 text-right font-bold text-amber-600">' + claimDisplay + '</td>' +
+                        '<td class="py-2.5 px-3 text-center no-print">' +
+                            '<button onclick="showInvoiceModalFromId(\'' + e.id + '\')" class="text-green-600 font-bold text-xs mr-1">View</button>' +
+                            '<button onclick="editEntry(\'' + e.id + '\')" class="text-blue-600 font-bold text-xs mr-1">Edit</button>' +
+                            '<button onclick="deleteEntry(\'' + e.id + '\')" class="text-red-500 font-bold text-xs">Del</button></td>';
+                    tbody.appendChild(tr);
+                }
+            }
+        }
+
+        function showInvoiceModalFromId(id) {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var e = null;
+            for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
+            if (e) { lastSavedEntry = e; showInvoiceModal(e); }
+        }
+
+        function exportFullBackup() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            if (entries.length === 0) {
+                showToast('এক্সপোর্ট করার মতো ডেটা নেই', 'error');
+                return;
+            }
+            var csv = getBackupCSVContent();
+            var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "GoodMart_FullBackup_" + new Date().toISOString().slice(0,10) + ".csv";
+            link.click();
+            showToast('Full Backup CSV ডাউনলোড হয়েছে', 'success');
+        }
+
+        function importBackup(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+            if (!confirm('Import করলে বর্তমান সব লেনদেন মুছে নতুন ডেটা বসবে। চালিয়ে যেতে চান?')) {
+                event.target.value = "";
+                return;
+            }
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var text = e.target.result;
+                    var lines = text.split(/\r?\n/);
+                    if (lines.length < 2) {
+                        showToast('ফাইল খালি বা ভুল ফরম্যাট', 'error');
+                        return;
+                    }
+                    var newEntries = [];
+                    for (var i = 1; i < lines.length; i++) {
+                        var line = lines[i].trim();
+                        if (!line || line.indexOf("Stock Remaining") !== -1 || line.startsWith(",,,")) continue;
+                        var cols = parseCSVLine(line);
+                        if (cols.length < 4) continue;
+                        var date = cols[0], brand = cols[1], type = cols[2], invNo = cols[3];
+                        var so = cols[4] || "N/A";
+                        var stockIn = parseFloat(cols[5]) || 0;
+                        var stockOut = parseFloat(cols[6]) || 0;
+                        var claim = parseFloat(cols[7]) || 0;
+                        var claimRec = parseFloat(cols[8]) || 0;
+                        var details = cols[10] || cols[9] || "";
+                        if (!date || !brand || !type) continue;
+                        if (type !== "Stock In" && type !== "Stock Out" && type !== "Claim Received") continue;
+                        newEntries.push({
+                            id: 'entry_' + Date.now() + '_' + i,
+                            date: date, brand: brand, so: so, type: type,
+                            invoiceNum: invNo || "IMP-" + i,
+                            credit: type === "Stock In" ? stockIn : 0,
+                            debit: type === "Stock Out" ? stockOut : 0,
+                            claim: type === "Stock Out" ? claim : 0,
+                            claimReceived: type === "Claim Received" ? claimRec : 0,
+                            details: details
+                        });
+                    }
+                    if (newEntries.length === 0) {
+                        showToast('কোনো বৈধ এন্ট্রি পাওয়া যায়নি', 'error');
+                        return;
+                    }
+                    localStorage.setItem("gm_entries", JSON.stringify(newEntries));
+                    showToast(newEntries.length + ' টি এন্ট্রি Import হয়েছে', 'success');
+                    renderDashboard();
+                    event.target.value = "";
+                } catch (err) {
+                    showToast('Import ব্যর্থ: ফাইল ফরম্যাট চেক করুন', 'error');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSVLine(line) {
+            var result = [], current = "", inQuotes = false;
+            for (var i = 0; i < line.length; i++) {
+                var char = line[i];
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = "";
+                } else current += char;
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        function exportAnalyticsCSV() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var csv = "Brand,Stock In,Stock Out,Pending Claim,Stock Balance\n";
+            for (var i = 0; i < allowedBrands.length; i++) {
+                var b = allowedBrands[i];
+                var bEntries = entries.filter(function(e) { return e.brand === b; });
+                var bIn = 0, bOut = 0, bClaimSub = 0, bClaimRec = 0;
+                for (var j = 0; j < bEntries.length; j++) {
+                    bIn += (bEntries[j].credit || 0);
+                    bOut += (bEntries[j].debit || 0);
+                    bClaimSub += (bEntries[j].claim || 0);
+                    bClaimRec += (bEntries[j].claimReceived || 0);
+                }
+                csv += b + "," + bIn.toFixed(2) + "," + bOut.toFixed(2) + "," + (bClaimSub - bClaimRec).toFixed(2) + "," + (bIn - bOut).toFixed(2) + "\n";
+            }
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "GoodMart_Analytics_" + new Date().toISOString().slice(0,10) + ".csv";
+            link.click();
+            showToast('Analytics CSV ডাউনলোড হয়েছে', 'success');
+        }
+
+        function renderAnalytics() {
+            var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
+            var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var container = document.getElementById("analyticsContainer");
+            if (!container) return;
+            container.innerHTML = "";
+            if (allowedBrands.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 col-span-full text-center py-8">কোনো ব্র্যান্ড নেই</p>';
+                return;
+            }
+            for (var i = 0; i < allowedBrands.length; i++) {
+                var b = allowedBrands[i];
+                var bEntries = entries.filter(function(e) { return e.brand === b; });
+                var bIn = 0, bOut = 0, bClaimSub = 0, bClaimRec = 0;
+                for (var j = 0; j < bEntries.length; j++) {
+                    bIn += (bEntries[j].credit || 0);
+                    bOut += (bEntries[j].debit || 0);
+                    bClaimSub += (bEntries[j].claim || 0);
+                    bClaimRec += (bEntries[j].claimReceived || 0);
+                }
+                var bClaim = bClaimSub - bClaimRec;
+                var bRem = bIn - bOut;
+                var div = document.createElement("div");
+                div.className = "p-4 rounded-2xl border border-gray-200 bg-gray-50 shadow-sm";
+                div.innerHTML = '<h4 class="font-bold text-base text-blue-600 border-b pb-2 mb-3">' + b + '</h4><div class="space-y-2 text-xs">' +
+                    '<div class="flex justify-between"><span class="text-gray-500">Stock In</span><span class="font-bold text-blue-700">' + bIn.toFixed(2) + ' TK</span></div>' +
+                    '<div class="flex justify-between"><span class="text-gray-500">Stock Out</span><span class="font-bold text-indigo-700">' + bOut.toFixed(2) + ' TK</span></div>' +
+                    '<div class="flex justify-between"><span class="text-gray-500">Pending Claim</span><span class="font-bold text-amber-700">' + bClaim.toFixed(2) + ' TK</span></div>' +
+                    '<div class="flex justify-between text-emerald-700 font-bold text-sm border-t pt-2 mt-1"><span>Stock Balance</span><span>' + bRem.toFixed(2) + ' TK</span></div></div>';
+                container.appendChild(div);
+            }
+        }
+    </script>
+</body>
+</html>
