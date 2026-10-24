@@ -9,6 +9,7 @@
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <style>
@@ -131,28 +132,22 @@
         <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
             <h2 class="text-2xl sm:text-3xl font-extrabold text-center text-blue-600 mb-1">Good Mart Enterprise</h2>
             <p class="text-center text-gray-500 mb-6 text-xs sm:text-sm">Distribution Management System</p>
-            <div class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                <p class="text-xs text-blue-800 font-bold mb-2">Quick Test Login:</p>
-                <div class="flex gap-2">
-                    <button type="button" onclick="quickLogin('admin')" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg w-1/2 shadow">🔑 Admin</button>
-                    <button type="button" onclick="quickLogin('dabur_user')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg w-1/2 shadow">👤 Staff</button>
-                </div>
-            </div>
+            
             <form onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
-                    <label class="block text-gray-700 text-xs font-bold mb-1 uppercase">Username</label>
-                    <input type="text" id="loginUsername" required class="w-full px-4 py-3 text-sm border rounded-xl" placeholder="Enter username">
+                    <label class="block text-gray-700 text-xs font-bold mb-1 uppercase">Email Address</label>
+                    <input type="email" id="loginEmail" required class="w-full px-4 py-3 text-sm border rounded-xl" placeholder="Enter your email">
                 </div>
                 <div>
                     <label class="block text-gray-700 text-xs font-bold mb-1 uppercase">Password</label>
                     <input type="password" id="loginPassword" required class="w-full px-4 py-3 text-sm border rounded-xl" placeholder="Enter password">
                 </div>
-                <p id="loginError" class="text-red-500 text-xs hidden font-bold text-center">ভুল ইউজারনেম বা পাসওয়ার্ড!</p>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Login</button>
+                <div class="flex justify-end">
+                    <button type="button" onclick="handleForgotPassword()" class="text-xs text-blue-600 hover:underline font-semibold">পাসওয়ার্ড ভুলে গেছেন?</button>
+                </div>
+                <p id="loginError" class="text-red-500 text-xs hidden font-bold text-center">ভুল ইমেইল বা পাসওয়ার্ড!</p>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg text-sm">Secure Login</button>
             </form>
-            <div class="mt-5 text-center">
-                <button onclick="resetDefaults()" class="text-xs text-red-500 hover:underline font-semibold">Reset App Data</button>
-            </div>
         </div>
     </div>
 
@@ -446,12 +441,12 @@
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Username (Login ID)</label>
-                            <input type="text" id="newUsername" placeholder="e.g. rahim123" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Email (Login ID)</label>
+                            <input type="email" id="newEmail" placeholder="e.g. admin@goodmart.com" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Password</label>
-                            <input type="password" id="newUserPass" placeholder="Password" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                            <input type="password" id="newUserPass" placeholder="Password (Min 6 chars)" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Role Type</label>
@@ -476,7 +471,7 @@
                         <thead>
                             <tr class="bg-gray-50 text-gray-600 uppercase text-[10px]">
                                 <th class="py-2.5 px-3 text-left">Full Name</th>
-                                <th class="py-2.5 px-3 text-left">Username</th>
+                                <th class="py-2.5 px-3 text-left">Email</th>
                                 <th class="py-2.5 px-3 text-left">Phone</th>
                                 <th class="py-2.5 px-3 text-left">Designation</th>
                                 <th class="py-2.5 px-3 text-left">Role</th>
@@ -546,6 +541,7 @@
         };
 
         var db = null;
+        var auth = null;
         var isFirebaseConnected = false;
         var currentHistoryPage = 1;
         var itemsPerPage = 100;
@@ -556,7 +552,31 @@
                     firebase.initializeApp(firebaseConfig);
                 }
                 db = firebase.firestore();
+                auth = firebase.auth();
                 isFirebaseConnected = true;
+                
+                // Monitor Auth state changes
+                auth.onAuthStateChanged(function(firebaseUser) {
+                    if (firebaseUser) {
+                        // Fetch user details from Firestore
+                        db.collection("users").doc(firebaseUser.email).get().then(function(doc) {
+                            if (doc.exists) {
+                                currentUser = doc.data();
+                                localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+                                showMainApp();
+                            } else {
+                                handleLogout();
+                            }
+                        }).catch(function(e) {
+                            console.error(e);
+                        });
+                    } else {
+                        currentUser = null;
+                        localStorage.removeItem("gm_logged_user");
+                        showLoginScreen();
+                    }
+                });
+
                 setupRealtimeListeners();
             } catch (err) {
                 console.error("Firebase init failed:", err);
@@ -639,11 +659,9 @@
             if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]));
             if (!localStorage.getItem("gm_users")) {
                 var defaultUsers = [
-                    { username: "admin", pass: "admin123", fullName: "Administrator", phone: "01714692560", designation: "Proprietor", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] },
-                    { username: "dabur_user", pass: "user123", fullName: "Staff Member", phone: "", designation: "Sales Executive", role: "user", brands: ["Dabur"] }
+                    { email: "admin@goodmart.com", fullName: "Administrator", phone: "01714692560", designation: "Proprietor", role: "admin", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] }
                 ];
                 localStorage.setItem("gm_users", JSON.stringify(defaultUsers));
-                defaultUsers.forEach(u => syncToFirebase("users", u.username, u));
             }
             if (!localStorage.getItem("gm_sos")) {
                 localStorage.setItem("gm_sos", JSON.stringify([
@@ -666,9 +684,7 @@
                 bottomNav.addEventListener('click', function(e) {
                     var btn = e.target.closest('[data-tab]');
                     if (!btn) return;
-
                     if (btn.getAttribute('data-hidden') === 'true' || btn.style.display === 'none') return;
-
                     e.preventDefault();
                     e.stopPropagation();
 
@@ -683,15 +699,10 @@
                         items[i].classList.remove('active');
                     }
                     btn.classList.add('active');
-
                     switchTab(tab);
                 });
             }
         });
-
-        window.onload = function() {
-            if (currentUser) showMainApp();
-        };
 
         function showToast(msg, type) {
             type = type || 'success';
@@ -701,53 +712,62 @@
             setTimeout(function() { t.className = ''; }, 2800);
         }
 
-        function resetDefaults() {
-            if (!confirm('সব ডেটা মুছে ডিফল্ট সেটিংস ফিরে আসবে। নিশ্চিত?')) return;
-            localStorage.clear();
-            initStorage();
-            showToast('ডিফল্ট সেটিংস রিস্টোর হয়েছে', 'success');
-            setTimeout(function() { location.reload(); }, 800);
-        }
-
-        function quickLogin(username) {
-            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
-            var found = users.find(function(x) { return x.username.toLowerCase() === username.toLowerCase(); });
-            if (found) {
-                currentUser = found;
-                localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
-                showMainApp();
-                showToast('লগইন সফল!', 'success');
-            }
-        }
-
         function handleLogin(e) {
             e.preventDefault();
-            var u = document.getElementById("loginUsername").value.trim().toLowerCase();
-            var p = document.getElementById("loginPassword").value.trim();
-            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
-            var found = users.find(function(x) { return x.username.toLowerCase() === u && x.pass === p; });
-            if (found) {
-                currentUser = found;
-                localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
-                showMainApp();
-                showToast('লগইন সফল!', 'success');
-            } else {
-                document.getElementById("loginError").classList.remove("hidden");
+            var email = document.getElementById("loginEmail").value.trim();
+            var pass = document.getElementById("loginPassword").value.trim();
+            
+            if (!auth) {
+                showToast('Firebase Auth initialised হচ্ছে না', 'error');
+                return;
             }
+
+            auth.signInWithEmailAndPassword(email, pass).then(function(userCredential) {
+                showToast('লগইন সফল!', 'success');
+            }).catch(function(error) {
+                document.getElementById("loginError").classList.remove("hidden");
+                showToast('লগইন ব্যর্থ: সঠিক ইমেইল ও পাসওয়ার্ড দিন', 'error');
+            });
+        }
+
+        function handleForgotPassword() {
+            var email = document.getElementById("loginEmail").value.trim();
+            if (!email) {
+                alert('দয়া করে প্রথমে আপনার ইমেইল ঘরে লিখুন, তারপর পাসওয়ার্ড ভুলে গেছেন লিংকে ক্লিক করুন।');
+                return;
+            }
+            if (!auth) return;
+            auth.sendPasswordResetEmail(email).then(function() {
+                showToast('পাসওয়ার্ড রিস্টোর লিংক আপনার ইমেইলে পাঠানো হয়েছে!', 'success');
+            }).catch(function(error) {
+                showToast('রিসেট ইমেইল পাঠানো যায়নি: সঠিক ইমেইল দিন', 'error');
+            });
         }
 
         function handleLogout() {
-            localStorage.removeItem("gm_logged_user");
-            currentUser = null;
+            if (auth) {
+                auth.signOut().then(function() {
+                    localStorage.removeItem("gm_logged_user");
+                    currentUser = null;
+                    showLoginScreen();
+                    showToast('লগআউট হয়েছে', 'success');
+                });
+            } else {
+                localStorage.removeItem("gm_logged_user");
+                currentUser = null;
+                showLoginScreen();
+            }
+        }
+
+        function showLoginScreen() {
             document.getElementById("mainApp").classList.add("hidden");
             document.getElementById("loginScreen").classList.remove("hidden");
-            showToast('লগআউট হয়েছে', 'success');
         }
 
         function showMainApp() {
             document.getElementById("loginScreen").classList.add("hidden");
             document.getElementById("mainApp").classList.remove("hidden");
-            document.getElementById("currentUserDisplay").innerText = currentUser.fullName || currentUser.username;
+            document.getElementById("currentUserDisplay").innerText = currentUser.fullName || currentUser.email;
             document.getElementById("currentUserRole").innerText = currentUser.role;
             document.getElementById("date").valueAsDate = new Date();
 
@@ -946,19 +966,19 @@
 
         function handleUserSubmit(e) {
             e.preventDefault();
-            var editingUsername = document.getElementById("editingUsername").value.trim();
+            var editingEmail = document.getElementById("editingUsername").value.trim();
             var fullName = document.getElementById("newFullName").value.trim();
             var phone = document.getElementById("newPhone").value.trim();
             var designation = document.getElementById("newDesignation").value.trim();
-            var username = document.getElementById("newUsername").value.trim().toLowerCase();
+            var email = document.getElementById("newEmail").value.trim().toLowerCase();
             var pass = document.getElementById("newUserPass").value.trim();
             var role = document.getElementById("newUserRole").value;
 
             var chks = document.querySelectorAll(".user-brand-chk:checked");
             var assignedBrands = Array.from(chks).map(c => c.value);
 
-            if (!username || !pass || !fullName) {
-                showToast('ইউজারনেম, পাসওয়ার্ড ও নাম দিন', 'error');
+            if (!email || !pass || !fullName) {
+                showToast('ইমেইল, পাসওয়ার্ড ও নাম দিন', 'error');
                 return;
             }
 
@@ -967,75 +987,58 @@
                 return;
             }
 
-            var users = JSON.parse(localStorage.getItem("gm_users")) || [];
-
-            if (editingUsername) {
-                var userIndex = users.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
-                if (userIndex !== -1) {
-                    var updatedUser = {
-                        fullName: fullName,
-                        phone: phone,
-                        designation: designation,
-                        username: editingUsername,
-                        pass: pass,
-                        role: role,
-                        brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
-                    };
-                    users[userIndex] = updatedUser;
-                    localStorage.setItem("gm_users", JSON.stringify(users));
-                    syncToFirebase("users", editingUsername, updatedUser);
-
-                    if (currentUser.username === editingUsername) {
-                        currentUser = updatedUser;
-                        localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
-                    }
-                    showToast('ইউজার আপডেট করা হয়েছে', 'success');
+            // Create Firebase Auth user
+            auth.createUserWithEmailAndPassword(email, pass).then(function(userCredential) {
+                saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
+            }).catch(function(error) {
+                // If user already exists in auth, just update firestore profile
+                if (error.code === 'auth/email-already-in-use') {
+                    saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
+                } else {
+                    showToast('ইউজার তৈরি ব্যর্থ: ' + error.message, 'error');
                 }
-            } else {
-                var exists = users.find(u => u.username.toLowerCase() === username);
-                if (exists) {
-                    showToast('এই ইউজারনেম ইতিমধ্যে বিদ্যমান', 'error');
-                    return;
-                }
-
-                var newUser = {
-                    fullName: fullName,
-                    phone: phone,
-                    designation: designation,
-                    username: username,
-                    pass: pass,
-                    role: role,
-                    brands: role === 'admin' ? (JSON.parse(localStorage.getItem("gm_brands")) || []) : assignedBrands
-                };
-
-                users.push(newUser);
-                localStorage.setItem("gm_users", JSON.stringify(users));
-                syncToFirebase("users", username, newUser);
-                showToast('নতুন ইউজার সফলভাবে তৈরি হয়েছে', 'success');
-            }
-
-            cancelUserEdit();
-            renderUserList();
+            });
         }
 
-        function editUser(username) {
+        function saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands) {
+            var brandsList = JSON.parse(localStorage.getItem("gm_brands")) || [];
+            var userData = {
+                email: email,
+                fullName: fullName,
+                phone: phone,
+                designation: designation,
+                role: role,
+                brands: role === 'admin' ? brandsList : assignedBrands
+            };
+
+            db.collection("users").doc(email).set(userData, { merge: true }).then(function() {
+                showToast('ইউজার সফলভাবে সংরক্ষিত হয়েছে', 'success');
+                cancelUserEdit();
+                renderUserList();
+            }).catch(function(err) {
+                showToast('ডেটা সেভ করতে সমস্যা হয়েছে', 'error');
+            });
+        }
+
+        function editUser(email) {
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
-            var u = users.find(x => x.username.toLowerCase() === username.toLowerCase());
+            var u = users.find(x => x.email.toLowerCase() === email.toLowerCase());
             if (!u) return;
 
-            document.getElementById("editingUsername").value = u.username;
+            document.getElementById("editingUsername").value = u.email;
             document.getElementById("newFullName").value = u.fullName || "";
             document.getElementById("newPhone").value = u.phone || "";
             document.getElementById("newDesignation").value = u.designation || "";
-            document.getElementById("newUsername").value = u.username;
-            document.getElementById("newUsername").disabled = true;
-            document.getElementById("newUserPass").value = u.pass || "";
+            document.getElementById("newEmail").value = u.email;
+            document.getElementById("newEmail").disabled = true;
+            document.getElementById("newUserPass").value = "";
+            document.getElementById("newUserPass").placeholder = "Leave blank if unchanged";
             document.getElementById("newUserRole").value = u.role || "user";
 
             renderUserBrandCheckboxes(u.brands || []);
 
             document.getElementById("userEditModeBadge").classList.remove("hidden");
-            document.getElementById("userSubmitBtn").textContent = "Update User";
+            document.getElementById("userSubmitBtn").textContent = "Update User Profile";
             document.getElementById("cancelUserEditBtn").classList.remove("hidden");
             document.getElementById("userForm").scrollIntoView({ behavior: 'smooth' });
         }
@@ -1045,9 +1048,10 @@
             document.getElementById("newFullName").value = "";
             document.getElementById("newPhone").value = "";
             document.getElementById("newDesignation").value = "";
-            document.getElementById("newUsername").value = "";
-            document.getElementById("newUsername").disabled = false;
+            document.getElementById("newEmail").value = "";
+            document.getElementById("newEmail").disabled = false;
             document.getElementById("newUserPass").value = "";
+            document.getElementById("newUserPass").placeholder = "Password (Min 6 chars)";
             document.getElementById("newUserRole").value = "user";
 
             document.getElementById("userEditModeBadge").classList.add("hidden");
@@ -1068,14 +1072,14 @@
             for (var i = 0; i < users.length; i++) {
                 var u = users[i];
                 var roleBadge = u.role === 'admin' ? '<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-bold">Admin</span>' : '<span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">User</span>';
-                var delBtn = u.username !== 'admin' ? '<button onclick="deleteUser(\'' + u.username + '\')" class="text-red-500 font-bold text-xs">Del</button>' : '<span class="text-gray-300 text-xs">Protected</span>';
-                var editBtn = '<button onclick="editUser(\'' + u.username + '\')" class="text-blue-600 font-bold text-xs mr-2">Edit</button>';
+                var delBtn = u.email !== 'admin@goodmart.com' ? '<button onclick="deleteUser(\'' + u.email + '\')" class="text-red-500 font-bold text-xs">Del</button>' : '<span class="text-gray-300 text-xs">Protected</span>';
+                var editBtn = '<button onclick="editUser(\'' + u.email + '\')" class="text-blue-600 font-bold text-xs mr-2">Edit</button>';
                 
                 var brandDisplay = u.role === 'admin' ? 'All Brands' : (u.brands ? u.brands.join(", ") : "None");
 
                 var tr = document.createElement("tr");
-                tr.innerHTML = '<td class="py-3 px-3 font-bold text-gray-800">' + (u.fullName || u.username) + '</td>' +
-                               '<td class="py-3 px-3 font-semibold text-blue-700">' + u.username + '</td>' +
+                tr.innerHTML = '<td class="py-3 px-3 font-bold text-gray-800">' + (u.fullName || u.email) + '</td>' +
+                               '<td class="py-3 px-3 font-semibold text-blue-700">' + u.email + '</td>' +
                                '<td class="py-3 px-3 text-gray-600">' + (u.phone || '-') + '</td>' +
                                '<td class="py-3 px-3 text-gray-600">' + (u.designation || '-') + '</td>' +
                                '<td class="py-3 px-3">' + roleBadge + '</td>' +
@@ -1085,16 +1089,16 @@
             }
         }
 
-        function deleteUser(username) {
-            if (username === 'admin') {
+        function deleteUser(email) {
+            if (email === 'admin@goodmart.com') {
                 showToast('মেইন অ্যাডমিন ডিলিট করা যাবে না', 'error');
                 return;
             }
-            if (!confirm('"' + username + '" ইউজার মুছে ফেলবেন?')) return;
+            if (!confirm('"' + email + '" ইউজার মুছে ফেলবেন?')) return;
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
-            users = users.filter(function(u) { return u.username !== username; });
+            users = users.filter(function(u) { return u.email !== email; });
             localStorage.setItem("gm_users", JSON.stringify(users));
-            removeFromFirebase("users", username);
+            removeFromFirebase("users", email);
             renderUserList();
             showToast('ইউজার মুছে ফেলা হয়েছে', 'success');
         }
@@ -1163,13 +1167,10 @@
             var selectedBrand = brandSelect ? brandSelect.value : "";
             var soSelect = document.getElementById("soSelect");
             if (!soSelect) return;
-            
             soSelect.innerHTML = "";
-
             if (!selectedBrand) return;
 
             var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
-            
             var brandSos = sos.filter(function(s) { 
                 return s.brand && s.brand.trim().toLowerCase() === selectedBrand.trim().toLowerCase(); 
             });
@@ -1231,7 +1232,6 @@
             sos = sos.filter(function(s) { return s.id !== id; });
             localStorage.setItem("gm_sos", JSON.stringify(sos));
             removeFromFirebase("sos", id);
-
             renderSoList();
             handleBrandChange();
             showToast('SO মুছে ফেলা হয়েছে', 'success');
@@ -1326,7 +1326,7 @@
                 document.getElementById("invClaimRow").style.display = "none";
             }
             document.getElementById("invSoRow").style.display = entry.type === "Stock In" ? "none" : "flex";
-            document.getElementById("invPreparedBy").textContent = (currentUser.fullName || currentUser.username) + " (" + currentUser.role.toUpperCase() + ")";
+            document.getElementById("invPreparedBy").textContent = (currentUser.fullName || currentUser.email) + " (" + currentUser.role.toUpperCase() + ")";
             document.getElementById("invoiceModal").classList.add("show");
         }
 
@@ -1553,7 +1553,6 @@
             if (e) { lastSavedEntry = e; showInvoiceModal(e); }
         }
 
-        // DATE-WISE FULL BACKUP WITH "Opening Balance" CARRY FORWARD
         function exportFullBackup() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
@@ -1561,14 +1560,12 @@
             var allowedBrands = currentUser.role === 'admin' ? brands : (currentUser.brands || []);
             var exportEntries = currentUser.role === 'admin' ? entries : entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
-            // Date-wise filtering check
             var fromDate = document.getElementById("exportFromDate") ? document.getElementById("exportFromDate").value : "";
             var toDate = document.getElementById("exportToDate") ? document.getElementById("exportToDate").value : "";
 
             var openingBalanceTotal = 0;
 
             if (fromDate) {
-                // Calculate opening balance for entries strictly BEFORE 'fromDate'
                 var priorEntries = exportEntries.filter(function(e) { return e.date < fromDate; });
                 var priorIn = 0, priorOut = 0;
                 for (var p = 0; p < priorEntries.length; p++) {
@@ -1577,7 +1574,6 @@
                 }
                 openingBalanceTotal = priorIn - priorOut;
 
-                // Filter export entries within the date range
                 exportEntries = exportEntries.filter(function(e) {
                     return e.date >= fromDate && (!toDate || e.date <= toDate);
                 });
@@ -1592,7 +1588,6 @@
 
             var csv = "Date,Brand,Invoice Type,Invoice Number,Stock In,Stock Out,Claim,Net Stock Out\n";
 
-            // If there's an opening balance from prior dates, insert it as the first row
             if (openingBalanceTotal !== 0 && fromDate) {
                 csv += fromDate + ",All Brands,Opening Balance,OPN-001," + openingBalanceTotal.toFixed(2) + ",,,\n";
             }
@@ -1613,14 +1608,7 @@
                     totalNetOut += ((e.debit || 0) - (e.claim || 0));
                 }
 
-                csv += e.date + "," + 
-                       e.brand + "," + 
-                       e.type + "," + 
-                       (e.invoiceNum || "") + "," + 
-                       (e.credit ? e.credit : "") + "," + 
-                       (e.debit ? e.debit : "") + "," + 
-                       (e.claim ? e.claim : "") + "," + 
-                       (netOutVal !== "" ? netOutVal.toFixed(2) : "") + "\n";
+                csv += e.date + "," + e.brand + "," + e.type + "," + (e.invoiceNum || "") + "," + (e.credit ? e.credit : "") + "," + (e.debit ? e.debit : "") + "," + (e.claim ? e.claim : "") + "," + (netOutVal !== "" ? netOutVal.toFixed(2) : "") + "\n";
             }
 
             var stockRemaining = totalIn - totalOut;
@@ -1670,10 +1658,7 @@
                         var stockOut = parseFloat(cols[5]) || 0;
                         var claim = parseFloat(cols[6]) || 0;
                         
-                        // If it's an Opening Balance row from previous month export, handle it as a Stock In entry
-                        if (type === "Opening Balance") {
-                            type = "Stock In";
-                        }
+                        if (type === "Opening Balance") { type = "Stock In"; }
 
                         if (!date || !brand || !type) continue;
                         if (type !== "Stock In" && type !== "Stock Out" && type !== "Claim Received") continue;
