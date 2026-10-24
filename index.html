@@ -46,14 +46,12 @@
                     if (userSnap.exists()) {
                         window.currentUser = userSnap.data();
                     } else {
-                        // নতুন ইউজারের ক্ষেত্রে নিজের ইচ্ছেমতো ব্র্যান্ড অ্যাসাইন রোধ করতে ফাঁকা বা নির্দিষ্ট ব্র্যান্ড দেওয়া হলো
                         window.currentUser = {
                             email: user.email,
                             fullName: user.email.split('@')[0],
                             role: user.email === "admin@goodmart.com" ? "admin" : "user",
                             brands: user.email === "admin@goodmart.com" ? ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] : []
                         };
-                        // ফায়ারস্টোরে নতুন ইউজারের এই অবজেক্টটি পার্মানেন্টলি সেভ করে দেওয়া যাতে অ্যাডমিন পরে ব্র্যান্ড সেট করতে পারে
                         await setDoc(userDocRef, window.currentUser);
                     }
                     localStorage.setItem("gm_logged_user", JSON.stringify(window.currentUser));
@@ -486,7 +484,7 @@
             </div>
 
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
-                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">২. Sales Officer ম্যানেজমেন্ট</h2>
+                <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">Sales Officer ম্যানেজমেন্ট</h2>
                 <form onsubmit="handleCreateSO(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-yellow-50 p-4 rounded-xl border border-yellow-200">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">Assigned Brand</label>
@@ -840,10 +838,11 @@
             var soBrandSelect = document.getElementById("soBrandSelect");
             if (soBrandSelect) {
                 soBrandSelect.innerHTML = "";
-                for (var i = 0; i < brands.length; i++) {
+                var soAllowedBrands = window.currentUser.role === 'admin' ? brands : allowed;
+                for (var i = 0; i < soAllowedBrands.length; i++) {
                     var opt2 = document.createElement("option");
-                    opt2.value = brands[i];
-                    opt2.textContent = brands[i];
+                    opt2.value = soAllowedBrands[i];
+                    opt2.textContent = soAllowedBrands[i];
                     soBrandSelect.appendChild(opt2);
                 }
             }
@@ -1203,13 +1202,28 @@
             var tbody = document.getElementById("soListTableBody");
             if (!tbody) return;
             tbody.innerHTML = "";
-            if (sos.length === 0) {
+
+            var allowedBrands = [];
+            if (window.currentUser) {
+                if (window.currentUser.role === 'admin') {
+                    allowedBrands = JSON.parse(localStorage.getItem("gm_brands")) || [];
+                } else {
+                    allowedBrands = window.currentUser.brands || [];
+                }
+            }
+
+            var visibleSos = sos.filter(function(s) {
+                return allowedBrands.indexOf(s.brand) !== -1;
+            });
+
+            if (visibleSos.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="3" class="py-6 text-center text-gray-400">কোনো SO নেই</td></tr>';
                 return;
             }
-            for (var i = 0; i < sos.length; i++) {
+            for (var i = 0; i < visibleSos.length; i++) {
                 var tr = document.createElement("tr");
-                tr.innerHTML = '<td class="py-3 px-3 font-semibold">' + sos[i].brand + '</td><td class="py-3 px-3 font-bold text-yellow-800">' + sos[i].name + '</td><td class="py-3 px-3 text-center"><button onclick="deleteSO(\'' + sos[i].id + '\')" class="text-red-500 font-bold text-xs">Delete</button></td>';
+                var deleteBtnHtml = window.currentUser.role === 'admin' ? '<button onclick="deleteSO(\'' + visibleSos[i].id + '\')" class="text-red-500 font-bold text-xs">Delete</button>' : '<span class="text-gray-300 text-xs">-</span>';
+                tr.innerHTML = '<td class="py-3 px-3 font-semibold">' + visibleSos[i].brand + '</td><td class="py-3 px-3 font-bold text-yellow-800">' + visibleSos[i].name + '</td><td class="py-3 px-3 text-center">' + deleteBtnHtml + '</td>';
                 tbody.appendChild(tr);
             }
         }
