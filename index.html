@@ -7,10 +7,118 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase Modular SDKs (v10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCr_R6wS5oM6sf8KXi1KJUq0fb4sUY492g",
+            authDomain: "goodmartall.firebaseapp.com",
+            projectId: "goodmartall",
+            storageBucket: "goodmartall.firebasestorage.app",
+            messagingSenderId: "631730015025",
+            appId: "1:631730015025:web:0c3e77f563e22f4ab67e10",
+            measurementId: "G-KP8HVLBR5D"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // গ্লোবাল ভ্যারিয়েবলে সেট করা যাতে অন্য ফাংশনগুলো এক্সেস করতে পারে
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.authFns = { signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword };
+        window.dbFns = { collection, doc, setDoc, deleteDoc, getDoc };
+
+        // সেশন পারসিস্টেন্স লোকাল স্টোরেজে ফিক্স করা
+        setPersistence(auth, browserLocalPersistence).then(() => {
+            console.log("Modular SDK: browserLocalPersistence set successfully.");
+        }).catch((error) => {
+            console.error("Persistence error:", error);
+        });
+
+        // অথ স্টেট চেঞ্জ মনিটর
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                try {
+                    const userDocRef = doc(db, "users", user.email);
+                    const userSnap = await getDoc(userDocRef);
+                    if (userSnap.exists()) {
+                        window.currentUser = userSnap.data();
+                    } else {
+                        window.currentUser = {
+                            email: user.email,
+                            fullName: user.email.split('@')[0],
+                            role: user.email === "admin@goodmart.com" ? "admin" : "user",
+                            brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
+                        };
+                    }
+                    localStorage.setItem("gm_logged_user", JSON.stringify(window.currentUser));
+                    if (typeof window.showMainApp === 'function') window.showMainApp();
+                } catch (e) {
+                    console.error("Auth sync error:", e);
+                    window.currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || {
+                        email: user.email, fullName: "User", role: "user", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
+                    };
+                    if (typeof window.showMainApp === 'function') window.showMainApp();
+                }
+            } else {
+                window.currentUser = null;
+                localStorage.removeItem("gm_logged_user");
+                if (typeof window.showLoginScreen === 'function') window.showLoginScreen();
+            }
+        });
+
+        // রিয়েলটাইম লিসেনার সেটআপ
+        onSnapshot(collection(db, "entries"), (snapshot) => {
+            let entries = [];
+            snapshot.forEach((d) => { entries.push({ id: d.id, ...d.data() }); });
+            localStorage.setItem("gm_entries", JSON.stringify(entries));
+            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            if (typeof window.renderHistoryTable === 'function') window.renderHistoryTable();
+        });
+
+        onSnapshot(doc(db, "settings", "brands"), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().list) {
+                localStorage.setItem("gm_brands", JSON.stringify(docSnap.data().list));
+                if (window.currentUser && typeof window.loadAllBrands === 'function') {
+                    window.loadAllBrands();
+                    window.populateFilterBrand();
+                    window.renderUserBrandCheckboxes();
+                }
+            }
+        });
+
+        onSnapshot(collection(db, "users"), (snapshot) => {
+            let users = [];
+            snapshot.forEach((d) => { users.push(d.data()); });
+            if (users.length > 0) {
+                localStorage.setItem("gm_users", JSON.stringify(users));
+                if (window.currentUser && window.currentUser.role === 'admin' && typeof window.renderUserList === 'function') {
+                    window.renderUserList();
+                }
+            }
+        });
+
+        onSnapshot(collection(db, "sos"), (snapshot) => {
+            let sos = [];
+            snapshot.forEach((d) => { sos.push({ id: d.id, ...d.data() }); });
+            localStorage.setItem("gm_sos", JSON.stringify(sos));
+            if (window.currentUser && typeof window.renderSoList === 'function') {
+                window.renderSoList();
+                window.handleBrandChange();
+            }
+        });
+
+        onSnapshot(doc(db, "settings", "counters"), (docSnap) => {
+            if (docSnap.exists()) {
+                localStorage.setItem("gm_invoice_counters", JSON.stringify(docSnap.data()));
+            }
+        });
+    </script>
 
     <style>
         :root { --safe-bottom: env(safe-area-inset-bottom); }
@@ -176,7 +284,7 @@
             </div>
         </div>
 
-        <!-- DASHBOARD (ENTRY & RECENT TRANSACTIONS) -->
+        <!-- DASHBOARD -->
         <div id="tabDashboard" class="space-y-4">
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div class="p-4 rounded-2xl shadow-lg text-white card-blue">
@@ -197,7 +305,6 @@
                 </div>
             </div>
 
-            <!-- Entry Form Card with Backup / Import Buttons -->
             <div class="bg-white shadow-md rounded-2xl p-4 sm:p-5">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 border-b pb-2">
                     <h2 class="text-base font-bold text-gray-800">নতুন এন্ট্রি</h2>
@@ -283,7 +390,6 @@
                 </form>
             </div>
 
-            <!-- Recent Transactions Preview Table (Last 10) -->
             <div class="bg-white p-4 rounded-2xl shadow-md overflow-hidden">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="font-bold text-sm text-gray-800">Recent Transactions (Latest)</h3>
@@ -311,7 +417,7 @@
             </div>
         </div>
 
-        <!-- HISTORY TAB (ALL INVOICES WITH 100 PAGINATION) -->
+        <!-- HISTORY TAB -->
         <div id="tabHistory" class="space-y-4 hidden">
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3 mb-4">
@@ -325,7 +431,6 @@
                     </div>
                 </div>
 
-                <!-- Filters -->
                 <div class="flex flex-wrap gap-2 items-center mb-4">
                     <input type="date" id="filterFrom" onchange="renderHistoryTable()" class="px-3 py-2 text-sm border rounded-xl">
                     <span class="text-xs text-gray-500">থেকে</span>
@@ -360,7 +465,6 @@
                 </div>
                 <p id="noHistoryMsg" class="text-center text-gray-400 text-sm py-6 hidden">কোনো ইতিহাস পাওয়া যায়নি</p>
 
-                <!-- Pagination Controls -->
                 <div class="flex justify-between items-center mt-4 border-t pt-3">
                     <span id="historyPageInfo" class="text-xs font-semibold text-gray-600">Showing Page 1 of 1</span>
                     <div class="flex gap-2">
@@ -371,9 +475,8 @@
             </div>
         </div>
 
-        <!-- MERGED TAB: BRANDS & SO MANAGER -->
+        <!-- BRANDS & SO MANAGER -->
         <div id="tabBrandsSo" class="space-y-4 hidden">
-            <!-- Brand Section -->
             <div id="adminBrandSection" class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
                 <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">১. ব্র্যান্ড ম্যানেজমেন্ট</h2>
                 <form onsubmit="handleAddBrand(event)" class="flex gap-2 mb-4">
@@ -383,7 +486,6 @@
                 <div id="brandsList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
             </div>
 
-            <!-- SO Section -->
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
                 <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">২. Sales Officer ম্যানেজমেন্ট</h2>
                 <form onsubmit="handleCreateSO(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-yellow-50 p-4 rounded-xl border border-yellow-200">
@@ -529,152 +631,10 @@
     </div>
 
     <script>
-        // PERMANENT FIREBASE CONFIGURATION (goodmartall)
-        const firebaseConfig = {
-            apiKey: "AIzaSyCr_R6wS5oM6sf8KXi1KJUq0fb4sUY492g",
-            authDomain: "goodmartall.firebaseapp.com",
-            projectId: "goodmartall",
-            storageBucket: "goodmartall.firebasestorage.app",
-            messagingSenderId: "631730015025",
-            appId: "1:631730015025:web:0c3e77f563e22f4ab67e10",
-            measurementId: "G-KP8HVLBR5D"
-        };
-
-        var db = null;
-        var auth = null;
-        var isFirebaseConnected = false;
+        window.currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || null;
+        var lastSavedEntry = null;
         var currentHistoryPage = 1;
         var itemsPerPage = 100;
-
-        function initFirebase() {
-            try {
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
-                }
-                db = firebase.firestore();
-                auth = firebase.auth();
-                
-                // সেশন পারসিস্টেন্স সেটআপ (লোকাল স্টোরেজে সেশন টিকিয়ে রাখা)
-                auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(function() {
-                    console.log("Persistence set to LOCAL successfully.");
-                }).catch(function(error) {
-                    console.error("Auth persistence error:", error);
-                });
-
-                isFirebaseConnected = true;
-                
-                // নিরাপদ অনঅথস্টেট চেঞ্জ (লগআউট লুপ রোধ করা হয়েছে)
-                auth.onAuthStateChanged(function(firebaseUser) {
-                    if (firebaseUser) {
-                        db.collection("users").doc(firebaseUser.email).get().then(function(doc) {
-                            if (doc.exists) {
-                                currentUser = doc.data();
-                            } else {
-                                // ফায়ারস্টোরে না থাকলে ডিফল্ট ইউজার অবজেক্ট তৈরি করে অ্যাপ রান করাবে (লগআউট লুপ হবে না)
-                                currentUser = {
-                                    email: firebaseUser.email,
-                                    fullName: firebaseUser.email.split('@')[0],
-                                    role: firebaseUser.email === "admin@goodmart.com" ? "admin" : "user",
-                                    brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
-                                };
-                            }
-                            localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
-                            showMainApp();
-                        }).catch(function(e) {
-                            console.error("User fetch error:", e);
-                            // ফেইল করলেও সেশন বজায় রাখতে লোকাল ডেটা বা ফால்ব্যাক ব্যবহার করা হবে
-                            currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || {
-                                email: firebaseUser.email,
-                                fullName: "User",
-                                role: "user",
-                                brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
-                            };
-                            showMainApp();
-                        });
-                    } else {
-                        currentUser = null;
-                        localStorage.removeItem("gm_logged_user");
-                        showLoginScreen();
-                    }
-                });
-
-                setupRealtimeListeners();
-            } catch (err) {
-                console.error("Firebase init failed:", err);
-                isFirebaseConnected = false;
-            }
-        }
-
-        function setupRealtimeListeners() {
-            if (!db) return;
-
-            db.collection("entries").onSnapshot(function(snapshot) {
-                var entries = [];
-                snapshot.forEach(function(doc) {
-                    var data = doc.data();
-                    data.id = doc.id;
-                    entries.push(data);
-                });
-                localStorage.setItem("gm_entries", JSON.stringify(entries));
-                renderDashboard();
-                renderHistoryTable();
-            });
-
-            db.collection("settings").doc("brands").onSnapshot(function(doc) {
-                if (doc.exists && doc.data().list) {
-                    localStorage.setItem("gm_brands", JSON.stringify(doc.data().list));
-                    if (currentUser) {
-                        loadAllBrands();
-                        populateFilterBrand();
-                        renderUserBrandCheckboxes();
-                    }
-                }
-            });
-
-            db.collection("users").onSnapshot(function(snapshot) {
-                var users = [];
-                snapshot.forEach(function(doc) {
-                    var data = doc.data();
-                    users.push(data);
-                });
-                if (users.length > 0) {
-                    localStorage.setItem("gm_users", JSON.stringify(users));
-                    if (currentUser && currentUser.role === 'admin') {
-                        renderUserList();
-                    }
-                }
-            });
-
-            db.collection("sos").onSnapshot(function(snapshot) {
-                var sos = [];
-                snapshot.forEach(function(doc) {
-                    var data = doc.data();
-                    data.id = doc.id;
-                    sos.push(data);
-                });
-                localStorage.setItem("gm_sos", JSON.stringify(sos));
-                if (currentUser) {
-                    renderSoList();
-                    handleBrandChange();
-                }
-            });
-
-            db.collection("settings").doc("counters").onSnapshot(function(doc) {
-                if (doc.exists) {
-                    localStorage.setItem("gm_invoice_counters", JSON.stringify(doc.data()));
-                }
-            });
-        }
-
-        function syncToFirebase(collection, docId, data) {
-            if (!isFirebaseConnected || !db) return;
-            db.collection(collection).doc(docId).set(data, { merge: true }).catch(function(e){ console.error(e); });
-        }
-
-        function removeFromFirebase(collection, docId) {
-            if (!isFirebaseConnected || !db) return;
-            db.collection(collection).doc(docId).delete().catch(function(e){ console.error(e); });
-        }
 
         function initStorage() {
             if (!localStorage.getItem("gm_brands")) localStorage.setItem("gm_brands", JSON.stringify(["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]));
@@ -694,10 +654,6 @@
             if (!localStorage.getItem("gm_invoice_counters")) localStorage.setItem("gm_invoice_counters", JSON.stringify({}));
         }
         initStorage();
-        initFirebase();
-
-        var currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || null;
-        var lastSavedEntry = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             var bottomNav = document.getElementById('bottomNav');
@@ -716,12 +672,15 @@
                     }
 
                     var items = bottomNav.querySelectorAll('.nav-item');
-                    for (var i = 0; i < items.length; i++) {
-                        items[i].classList.remove('active');
-                    }
+                    for (var i = 0; i < items.length; i++) { items[i].classList.remove('active'); }
                     btn.classList.add('active');
                     switchTab(tab);
                 });
+            }
+            if (window.currentUser) {
+                showMainApp();
+            } else {
+                showLoginScreen();
             }
         });
 
@@ -733,63 +692,55 @@
             setTimeout(function() { t.className = ''; }, 2800);
         }
 
-        function handleLogin(e) {
+        async function handleLogin(e) {
             e.preventDefault();
             var email = document.getElementById("loginEmail").value.trim();
             var pass = document.getElementById("loginPassword").value.trim();
             
-            if (!auth) {
-                showToast('Firebase Auth initialised হচ্ছে না', 'error');
-                return;
-            }
-
-            auth.signInWithEmailAndPassword(email, pass).then(function(userCredential) {
+            try {
+                await window.authFns.signInWithEmailAndPassword(window.firebaseAuth, email, pass);
                 showToast('লগইন সফল!', 'success');
-            }).catch(function(error) {
+            } catch (error) {
                 document.getElementById("loginError").classList.remove("hidden");
                 showToast('লগইন ব্যর্থ: সঠিক ইমেইল ও পাসওয়ার্ড দিন', 'error');
-            });
+            }
         }
 
-        function handleForgotPassword() {
+        async function handleForgotPassword() {
             var email = document.getElementById("loginEmail").value.trim();
             if (!email) {
                 alert('দয়া করে প্রথমে আপনার ইমেইল ঘরে লিখুন, তারপর পাসওয়ার্ড ভুলে গেছেন লিংকে ক্লিক করুন।');
                 return;
             }
-            if (!auth) return;
-            auth.sendPasswordResetEmail(email).then(function() {
+            try {
+                await window.authFns.sendPasswordResetEmail(window.firebaseAuth, email);
                 showToast('পাসওয়ার্ড রিস্টোর লিংক আপনার ইমেইলে পাঠানো হয়েছে!', 'success');
-            }).catch(function(error) {
+            } catch (error) {
                 showToast('রিসেট ইমেইল পাঠানো যায়নি: সঠিক ইমেইল দিন', 'error');
-            });
-        }
-
-        function handleLogout() {
-            if (auth) {
-                auth.signOut().then(function() {
-                    localStorage.removeItem("gm_logged_user");
-                    currentUser = null;
-                    showLoginScreen();
-                    showToast('লগআউট হয়েছে', 'success');
-                });
-            } else {
-                localStorage.removeItem("gm_logged_user");
-                currentUser = null;
-                showLoginScreen();
             }
         }
 
-        function showLoginScreen() {
+        async function handleLogout() {
+            try {
+                await window.authFns.signOut(window.firebaseAuth);
+            } catch(e) {}
+            localStorage.removeItem("gm_logged_user");
+            window.currentUser = null;
+            showLoginScreen();
+            showToast('লগআউট হয়েছে', 'success');
+        }
+
+        window.showLoginScreen = function() {
             document.getElementById("mainApp").classList.add("hidden");
             document.getElementById("loginScreen").classList.remove("hidden");
         }
 
-        function showMainApp() {
+        window.showMainApp = function() {
+            if (!window.currentUser) return;
             document.getElementById("loginScreen").classList.add("hidden");
             document.getElementById("mainApp").classList.remove("hidden");
-            document.getElementById("currentUserDisplay").innerText = currentUser.fullName || currentUser.email;
-            document.getElementById("currentUserRole").innerText = currentUser.role;
+            document.getElementById("currentUserDisplay").innerText = window.currentUser.fullName || window.currentUser.email;
+            document.getElementById("currentUserRole").innerText = window.currentUser.role;
             document.getElementById("date").valueAsDate = new Date();
 
             var adminDbArea = document.getElementById("adminDbStatusArea");
@@ -798,22 +749,16 @@
             var adminBrandSec = document.getElementById("adminBrandSection");
             var importBtnWrapper = document.getElementById("importBtnWrapper");
 
-            if (currentUser.role === 'admin') {
+            if (window.currentUser.role === 'admin') {
                 adminDbArea.classList.remove("hidden");
                 if (usersDesktopBtn) usersDesktopBtn.classList.remove("hidden");
-                if (usersMobileBtn) {
-                    usersMobileBtn.style.display = '';
-                    usersMobileBtn.removeAttribute('data-hidden');
-                }
+                if (usersMobileBtn) { usersMobileBtn.style.display = ''; usersMobileBtn.removeAttribute('data-hidden'); }
                 if (adminBrandSec) adminBrandSec.classList.remove("hidden");
                 if (importBtnWrapper) importBtnWrapper.classList.remove("hidden");
             } else {
                 adminDbArea.classList.add("hidden");
                 if (usersDesktopBtn) usersDesktopBtn.classList.add("hidden");
-                if (usersMobileBtn) {
-                    usersMobileBtn.style.display = 'none';
-                    usersMobileBtn.setAttribute('data-hidden', 'true');
-                }
+                if (usersMobileBtn) { usersMobileBtn.style.display = 'none'; usersMobileBtn.setAttribute('data-hidden', 'true'); }
                 if (adminBrandSec) adminBrandSec.classList.add("hidden");
                 if (importBtnWrapper) importBtnWrapper.classList.add("hidden");
             }
@@ -858,17 +803,17 @@
             generateInvoiceNumber();
         }
 
-        function loadAllBrands() {
+        window.loadAllBrands = function() {
             var brands = JSON.parse(localStorage.getItem("gm_brands"));
             if (!brands || brands.length === 0) {
                 brands = ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"];
                 localStorage.setItem("gm_brands", JSON.stringify(brands));
             }
             var allowed = [];
-            if (currentUser && currentUser.role === 'admin') allowed = brands;
-            else if (currentUser && currentUser.brands) {
+            if (window.currentUser && window.currentUser.role === 'admin') allowed = brands;
+            else if (window.currentUser && window.currentUser.brands) {
                 for (var i = 0; i < brands.length; i++) {
-                    if (currentUser.brands.indexOf(brands[i]) !== -1) allowed.push(brands[i]);
+                    if (window.currentUser.brands.indexOf(brands[i]) !== -1) allowed.push(brands[i]);
                 }
             } else allowed = brands;
             if (allowed.length === 0) allowed = brands;
@@ -934,7 +879,7 @@
                     renderBrands();
                     renderSoList();
                 } else if (tabName === 'users') {
-                    if (currentUser.role !== 'admin') {
+                    if (window.currentUser.role !== 'admin') {
                         showToast('শুধু Admin ইউজার ম্যানেজ করতে পারবে', 'error');
                         switchTab('dashboard');
                         return;
@@ -952,13 +897,12 @@
                 }
             } catch (err) {
                 console.error("switchTab error:", err);
-                showToast('ট্যাব পরিবর্তনে সমস্যা হয়েছে', 'error');
             }
         }
 
-        function populateFilterBrand() {
+        window.populateFilterBrand = function() {
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowed = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var allowed = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
             var sel = document.getElementById("filterBrand");
             if (!sel) return;
             sel.innerHTML = '<option value="">All Brands</option>';
@@ -970,7 +914,7 @@
             }
         }
 
-        function renderUserBrandCheckboxes(selectedBrands) {
+        window.renderUserBrandCheckboxes = function(selectedBrands) {
             selectedBrands = selectedBrands || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var container = document.getElementById("userBrandCheckboxes");
@@ -985,8 +929,8 @@
             });
         }
 
-        // ইউজার এডিট বা নতুন ইউজার সাবমিট করার নিখুঁত লজিক
-        function handleUserSubmit(e) {
+        // ইউজার এডিট ও আপডেট করার নিখুঁত মডুলার লজিক
+        async function handleUserSubmit(e) {
             e.preventDefault();
             var editingEmail = document.getElementById("editingUsername").value.trim();
             var fullName = document.getElementById("newFullName").value.trim();
@@ -1010,26 +954,26 @@
             }
 
             if (editingEmail) {
-                // এডিট মোড: সরাসরি ফায়ারস্টোরে আপডেট হবে
-                saveUserDataToFirestore(editingEmail, fullName, phone, designation, role, assignedBrands);
+                await saveUserDataToFirestore(editingEmail, fullName, phone, designation, role, assignedBrands);
             } else {
                 if (!pass || pass.length < 6) {
                     showToast('নতুন ইউজারের জন্য অন্তত ৬ অক্ষরের পাসওয়ার্ড দিন', 'error');
                     return;
                 }
-                auth.createUserWithEmailAndPassword(email, pass).then(function(userCredential) {
-                    saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
-                }).catch(function(error) {
+                try {
+                    await window.authFns.createUserWithEmailAndPassword(window.firebaseAuth, email, pass);
+                    await saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
+                } catch (error) {
                     if (error.code === 'auth/email-already-in-use') {
-                        saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
+                        await saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
                     } else {
                         showToast('ইউজার তৈরি ব্যর্থ: ' + error.message, 'error');
                     }
-                });
+                }
             }
         }
 
-        function saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands) {
+        async function saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands) {
             var brandsList = JSON.parse(localStorage.getItem("gm_brands")) || [];
             var userData = {
                 email: email,
@@ -1040,16 +984,17 @@
                 brands: role === 'admin' ? brandsList : assignedBrands
             };
 
-            db.collection("users").doc(email).set(userData, { merge: true }).then(function() {
+            try {
+                await window.dbFns.setDoc(window.dbFns.doc(window.firebaseDb, "users", email), userData, { merge: true });
                 showToast('ইউজার সফলভাবে সংরক্ষিত হয়েছে', 'success');
                 cancelUserEdit();
                 renderUserList();
-            }).catch(function(err) {
+            } catch (err) {
                 showToast('ডেটা সেভ করতে সমস্যা হয়েছে', 'error');
-            });
+            }
         }
 
-        function editUser(email) {
+        window.editUser = function(email) {
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
             var u = users.find(x => x.email.toLowerCase() === email.toLowerCase());
             if (!u) {
@@ -1075,7 +1020,7 @@
             document.getElementById("userForm").scrollIntoView({ behavior: 'smooth' });
         }
 
-        function cancelUserEdit() {
+        window.cancelUserEdit = function() {
             document.getElementById("editingUsername").value = "";
             document.getElementById("newFullName").value = "";
             document.getElementById("newPhone").value = "";
@@ -1092,7 +1037,7 @@
             renderUserBrandCheckboxes();
         }
 
-        function renderUserList() {
+        window.renderUserList = function() {
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
             var tbody = document.getElementById("userListTableBody");
             if (!tbody) return;
@@ -1121,7 +1066,7 @@
             }
         }
 
-        function deleteUser(email) {
+        window.deleteUser = function(email) {
             if (email === 'admin@goodmart.com') {
                 showToast('মেইন অ্যাডমিন ডিলিট করা যাবে না', 'error');
                 return;
@@ -1153,8 +1098,8 @@
                 if (users[i].role === 'admin') users[i].brands = brands;
             }
             localStorage.setItem("gm_users", JSON.stringify(users));
-            currentUser.brands = brands;
-            localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+            window.currentUser.brands = brands;
+            localStorage.setItem("gm_logged_user", JSON.stringify(window.currentUser));
             document.getElementById("newBrandInput").value = "";
             loadAllBrands();
             populateFilterBrand();
@@ -1176,7 +1121,7 @@
             }
         }
 
-        function deleteBrand(name) {
+        window.deleteBrand = function(name) {
             if (!confirm('"' + name + '" ব্র্যান্ড মুছে ফেলবেন?')) return;
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             brands = brands.filter(function(b) { return b !== name; });
@@ -1194,7 +1139,7 @@
             showToast('ব্র্যান্ড মুছে ফেলা হয়েছে', 'success');
         }
 
-        function handleBrandChange() {
+        window.handleBrandChange = function() {
             var brandSelect = document.getElementById("brandSelect");
             var selectedBrand = brandSelect ? brandSelect.value : "";
             var soSelect = document.getElementById("soSelect");
@@ -1242,7 +1187,7 @@
             showToast('Sales Officer যোগ হয়েছে', 'success');
         }
 
-        function renderSoList() {
+        window.renderSoList = function() {
             var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             var tbody = document.getElementById("soListTableBody");
             if (!tbody) return;
@@ -1258,7 +1203,7 @@
             }
         }
 
-        function deleteSO(id) {
+        window.deleteSO = function(id) {
             if (!confirm('এই Sales Officer মুছে ফেলবেন?')) return;
             var sos = JSON.parse(localStorage.getItem("gm_sos")) || [];
             sos = sos.filter(function(s) { return s.id !== id; });
@@ -1358,16 +1303,16 @@
                 document.getElementById("invClaimRow").style.display = "none";
             }
             document.getElementById("invSoRow").style.display = entry.type === "Stock In" ? "none" : "flex";
-            document.getElementById("invPreparedBy").textContent = (currentUser.fullName || currentUser.email) + " (" + currentUser.role.toUpperCase() + ")";
+            document.getElementById("invPreparedBy").textContent = (window.currentUser.fullName || window.currentUser.email) + " (" + window.currentUser.role.toUpperCase() + ")";
             document.getElementById("invoiceModal").classList.add("show");
         }
 
-        function closeInvoiceModal() {
+        window.closeInvoiceModal = function() {
             document.getElementById("invoiceModal").classList.remove("show");
             generateInvoiceNumber();
         }
 
-        function printInvoice() {
+        window.printInvoice = function() {
             var printContent = document.getElementById("invoicePrintArea").innerHTML;
             var win = window.open('', '', 'width=420,height=650');
             win.document.write('<html><head><title>Invoice - Good Mart</title><style>body{font-family:sans-serif;padding:10px;margin:0;} .invoice-box{border:2px solid #1e40af;border-radius:8px;overflow:hidden;} .bg-blue-800{background:#1e40af;color:white;text-align:center;padding:12px;} .bg-blue-50{background:#eff6ff;text-align:center;padding:6px;border-bottom:1px solid #bfdbfe;} .flex{display:flex;justify-content:space-between;margin:4px 0;} .font-bold{font-weight:bold;} .text-blue-700{color:#1d4ed8;} .bg-gray-50{background:#f9fafb;padding:8px;border-radius:6px;}</style></head><body>' + printContent + '</body></html>');
@@ -1375,7 +1320,7 @@
             setTimeout(function(){ win.print(); }, 300);
         }
 
-        function downloadInvoiceImage() {
+        window.downloadInvoiceImage = function() {
             html2canvas(document.getElementById("invoicePrintArea"), { scale: 2, backgroundColor: "#ffffff" }).then(function(canvas) {
                 var link = document.createElement("a");
                 link.download = "Invoice_" + (lastSavedEntry ? lastSavedEntry.invoiceNum : "GM") + ".png";
@@ -1385,7 +1330,7 @@
             });
         }
 
-        function editEntry(id) {
+        window.editEntry = function(id) {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var e = null;
             for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
@@ -1420,7 +1365,7 @@
             document.getElementById("invoiceForm").scrollIntoView({ behavior: 'smooth' });
         }
 
-        function cancelEdit() {
+        window.cancelEdit = function() {
             document.getElementById("editEntryId").value = "";
             document.getElementById("editModeBadge").classList.add("hidden");
             document.getElementById("submitBtn").textContent = "Submit Entry";
@@ -1436,7 +1381,7 @@
             onBrandOrTypeChange();
         }
 
-        function deleteEntry(id) {
+        window.deleteEntry = function(id) {
             if (!confirm('এই এন্ট্রি মুছে ফেলবেন?')) return;
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             entries = entries.filter(function(e) { return e.id !== id; });
@@ -1448,10 +1393,10 @@
             showToast('এন্ট্রি মুছে ফেলা হয়েছে', 'success');
         }
 
-        function renderDashboard() {
+        window.renderDashboard = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
             var allAllowed = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
             var totalIn = 0, totalOut = 0, totalClaimSubmitted = 0, totalClaimReceived = 0;
@@ -1501,10 +1446,10 @@
             }
         }
 
-        function renderHistoryTable() {
+        window.renderHistoryTable = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
             var filtered = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
             var search = (document.getElementById("searchInput") ? document.getElementById("searchInput").value : "").toLowerCase();
@@ -1573,24 +1518,34 @@
             document.getElementById("nextPageBtn").disabled = currentHistoryPage >= totalPages;
         }
 
-        function changeHistoryPage(direction) {
+        window.changeHistoryPage = function(direction) {
             currentHistoryPage += direction;
             renderHistoryTable();
         }
 
-        function showInvoiceModalFromId(id) {
+        window.showInvoiceModalFromId = function(id) {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var e = null;
             for (var i = 0; i < entries.length; i++) { if (entries[i].id === id) { e = entries[i]; break; } }
             if (e) { lastSavedEntry = e; showInvoiceModal(e); }
         }
 
-        function exportFullBackup() {
+        function syncToFirebase(collectionName, docId, data) {
+            if (!window.firebaseDb) return;
+            window.dbFns.setDoc(window.dbFns.doc(window.firebaseDb, collectionName, docId), data, { merge: true }).catch(e => console.error(e));
+        }
+
+        function removeFromFirebase(collectionName, docId) {
+            if (!window.firebaseDb) return;
+            window.dbFns.deleteDoc(window.dbFns.doc(window.firebaseDb, collectionName, docId)).catch(e => console.error(e));
+        }
+
+        window.exportFullBackup = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
             
-            var allowedBrands = currentUser.role === 'admin' ? brands : (currentUser.brands || []);
-            var exportEntries = currentUser.role === 'admin' ? entries : entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : (window.currentUser.brands || []);
+            var exportEntries = window.currentUser.role === 'admin' ? entries : entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
             var fromDate = document.getElementById("exportFromDate") ? document.getElementById("exportFromDate").value : "";
             var toDate = document.getElementById("exportToDate") ? document.getElementById("exportToDate").value : "";
@@ -1658,8 +1613,8 @@
             showToast('Date-wise Full Backup CSV ডাউনলোড হয়েছে', 'success');
         }
 
-        function importBackup(event) {
-            if (currentUser.role !== 'admin') {
+        window.importBackup = function(event) {
+            if (window.currentUser.role !== 'admin') {
                 showToast('শুধুমাত্র Admin ব্যাকআপ Import করতে পারবে', 'error');
                 event.target.value = "";
                 return;
@@ -1719,7 +1674,6 @@
                     event.target.value = "";
                 } catch (err) {
                     showToast('Import ব্যর্থ: ফাইল ফরম্যাট চেক করুন', 'error');
-                    console.error(err);
                 }
             };
             reader.readAsText(file);
@@ -1739,10 +1693,10 @@
             return result;
         }
 
-        function exportAnalyticsCSV() {
+        window.exportAnalyticsCSV = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
             var csv = "Brand,Stock In,Stock Out,Pending Claim,Stock Balance\n";
             for (var i = 0; i < allowedBrands.length; i++) {
                 var b = allowedBrands[i];
@@ -1764,10 +1718,10 @@
             showToast('Analytics CSV ডাউনলোড হয়েছে', 'success');
         }
 
-        function renderAnalytics() {
+        window.renderAnalytics = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = currentUser.role === 'admin' ? brands : brands.filter(function(b) { return currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
             var container = document.getElementById("analyticsContainer");
             if (!container) return;
             container.innerHTML = "";
