@@ -46,19 +46,22 @@
                     if (userSnap.exists()) {
                         window.currentUser = userSnap.data();
                     } else {
+                        // নতুন ইউজারের ক্ষেত্রে নিজের ইচ্ছেমতো ব্র্যান্ড অ্যাসাইন রোধ করতে ফাঁকা বা নির্দিষ্ট ব্র্যান্ড দেওয়া হলো
                         window.currentUser = {
                             email: user.email,
                             fullName: user.email.split('@')[0],
                             role: user.email === "admin@goodmart.com" ? "admin" : "user",
-                            brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
+                            brands: user.email === "admin@goodmart.com" ? ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"] : []
                         };
+                        // ফায়ারস্টোরে নতুন ইউজারের এই অবজেক্টটি পার্মানেন্টলি সেভ করে দেওয়া যাতে অ্যাডমিন পরে ব্র্যান্ড সেট করতে পারে
+                        await setDoc(userDocRef, window.currentUser);
                     }
                     localStorage.setItem("gm_logged_user", JSON.stringify(window.currentUser));
                     if (typeof window.showMainApp === 'function') window.showMainApp();
                 } catch (e) {
                     console.error("Auth sync error:", e);
                     window.currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || {
-                        email: user.email, fullName: "User", role: "user", brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
+                        email: user.email, fullName: "User", role: "user", brands: []
                     };
                     if (typeof window.showMainApp === 'function') window.showMainApp();
                 }
@@ -310,7 +313,7 @@
                             <span class="text-gray-500 px-1">To:</span><input type="date" id="exportToDate" class="border rounded px-1 py-0.5">
                         </div>
                         <button onclick="exportFullBackup()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-3 rounded-xl">↓ Date-wise Full Backup (CSV)</button>
-                        <label id="importBtnWrapper" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-xl cursor-pointer">
+                        <label id="importBtnWrapper" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-xl cursor-pointer hidden">
                             ↑ Import Backup
                             <input type="file" id="importFile" accept=".csv" class="hidden" onchange="importBackup(event)">
                         </label>
@@ -473,7 +476,7 @@
 
         <!-- BRANDS & SO MANAGER -->
         <div id="tabBrandsSo" class="space-y-4 hidden">
-            <div id="adminBrandSection" class="bg-white p-4 sm:p-5 rounded-2xl shadow-md">
+            <div id="adminBrandSection" class="bg-white p-4 sm:p-5 rounded-2xl shadow-md hidden">
                 <h2 class="text-base font-bold text-gray-800 mb-3 border-b pb-2">১. ব্র্যান্ড ম্যানেজমেন্ট</h2>
                 <form onsubmit="handleAddBrand(event)" class="flex gap-2 mb-4">
                     <input type="text" id="newBrandInput" placeholder="নতুন ব্র্যান্ডের নাম" required class="flex-1 px-4 py-2.5 text-sm border rounded-xl">
@@ -540,7 +543,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Email (Login ID)</label>
-                            <input type="email" id="newEmail" placeholder="e.g. admin@goodmart.com" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
+                            <input type="email" id="newEmail" placeholder="e.g. user@goodmart.com" required class="w-full px-3 py-2 text-sm border rounded-xl bg-white">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Password</label>
@@ -612,7 +615,7 @@
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
             Brands&SO
         </button>
-        <button type="button" data-tab="users" class="nav-item" id="navUsersBtn">
+        <button type="button" data-tab="users" class="nav-item" id="navUsersBtn" style="display:none;" data-hidden="true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
             Users
         </button>
@@ -811,30 +814,36 @@
                 for (var i = 0; i < brands.length; i++) {
                     if (window.currentUser.brands.indexOf(brands[i]) !== -1) allowed.push(brands[i]);
                 }
-            } else allowed = brands;
-            if (allowed.length === 0) allowed = brands;
+            } else allowed = [];
 
             var brandSelect = document.getElementById("brandSelect");
             if (brandSelect) {
                 var currentSelectedBrand = brandSelect.value;
                 brandSelect.innerHTML = "";
-                for (var i = 0; i < allowed.length; i++) {
+                if (allowed.length === 0) {
                     var opt = document.createElement("option");
-                    opt.value = allowed[i];
-                    opt.textContent = allowed[i];
+                    opt.value = "";
+                    opt.textContent = "কোনো ব্র্যান্ড অ্যাসাইন করা নেই";
                     brandSelect.appendChild(opt);
-                }
-                if (currentSelectedBrand && allowed.indexOf(currentSelectedBrand) !== -1) {
-                    brandSelect.value = currentSelectedBrand;
+                } else {
+                    for (var i = 0; i < allowed.length; i++) {
+                        var opt = document.createElement("option");
+                        opt.value = allowed[i];
+                        opt.textContent = allowed[i];
+                        brandSelect.appendChild(opt);
+                    }
+                    if (currentSelectedBrand && allowed.indexOf(currentSelectedBrand) !== -1) {
+                        brandSelect.value = currentSelectedBrand;
+                    }
                 }
             }
             var soBrandSelect = document.getElementById("soBrandSelect");
             if (soBrandSelect) {
                 soBrandSelect.innerHTML = "";
-                for (var i = 0; i < allowed.length; i++) {
+                for (var i = 0; i < brands.length; i++) {
                     var opt2 = document.createElement("option");
-                    opt2.value = allowed[i];
-                    opt2.textContent = allowed[i];
+                    opt2.value = brands[i];
+                    opt2.textContent = brands[i];
                     soBrandSelect.appendChild(opt2);
                 }
             }
@@ -898,7 +907,7 @@
 
         window.populateFilterBrand = function() {
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowed = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
+            var allowed = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands && window.currentUser.brands.indexOf(b) !== -1; });
             var sel = document.getElementById("filterBrand");
             if (!sel) return;
             sel.innerHTML = '<option value="">All Brands</option>';
@@ -917,7 +926,7 @@
             if (!container) return;
             container.innerHTML = "";
             brands.forEach(b => {
-                var isChecked = selectedBrands.length === 0 ? true : selectedBrands.includes(b);
+                var isChecked = selectedBrands.includes(b);
                 var lbl = document.createElement("label");
                 lbl.className = "inline-flex items-center text-xs font-semibold cursor-pointer mr-3";
                 lbl.innerHTML = `<input type="checkbox" value="${b}" class="user-brand-chk rounded text-blue-600 mr-1.5" ${isChecked ? 'checked' : ''}> ${b}`;
@@ -925,7 +934,6 @@
             });
         }
 
-        // ইউজার এডিট ও আপডেট করার ত্রুটিমুক্ত ও নিখুঁত লজিক
         async function handleUserSubmit(e) {
             e.preventDefault();
             var editingEmail = document.getElementById("editingUsername").value.trim();
@@ -950,7 +958,6 @@
             }
 
             try {
-                // যদি নতুন ইউজার হয়, তবেই ফায়ারবেস Auth এ অ্যাকাউন্ট তৈরি করবে
                 if (!editingEmail) {
                     if (!pass || pass.length < 6) {
                         showToast('নতুন ইউজারের জন্য অন্তত ৬ অক্ষরের পাসওয়ার্ড দিন', 'error');
@@ -965,7 +972,6 @@
                     }
                 }
 
-                // এডিট বা নতুন উভয় ক্ষেত্রেই ফায়ারস্টোরে ডেটা সেভ হবে
                 var brandsList = JSON.parse(localStorage.getItem("gm_brands")) || [];
                 var userData = {
                     email: email,
@@ -976,7 +982,6 @@
                     brands: role === 'admin' ? brandsList : assignedBrands
                 };
 
-                // লোকাল স্টোরেজ আপডেট
                 var users = JSON.parse(localStorage.getItem("gm_users")) || [];
                 var index = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
                 if (index !== -1) {
@@ -986,7 +991,6 @@
                 }
                 localStorage.setItem("gm_users", JSON.stringify(users));
 
-                // ফায়ারস্টোরে ডেটা পাঠানো
                 await window.dbFns.setDoc(window.dbFns.doc(window.firebaseDb, "users", email), userData, { merge: true });
                 
                 showToast('ইউজার সফলভাবে সংরক্ষিত হয়েছে', 'success');
@@ -1057,7 +1061,7 @@
                 var delBtn = u.email !== 'admin@goodmart.com' ? '<button onclick="deleteUser(\'' + u.email + '\')" class="text-red-500 font-bold text-xs">Del</button>' : '<span class="text-gray-300 text-xs">Protected</span>';
                 var editBtn = '<button onclick="editUser(\'' + u.email + '\')" class="text-blue-600 font-bold text-xs mr-2">Edit</button>';
                 
-                var brandDisplay = u.role === 'admin' ? 'All Brands' : (u.brands ? u.brands.join(", ") : "None");
+                var brandDisplay = u.role === 'admin' ? 'All Brands' : (u.brands && u.brands.length > 0 ? u.brands.join(", ") : "কোনো ব্র্যান্ড অ্যাসাইন করা নেই");
 
                 var tr = document.createElement("tr");
                 tr.innerHTML = '<td class="py-3 px-3 font-bold text-gray-800">' + (u.fullName || u.email) + '</td>' +
@@ -1103,8 +1107,10 @@
                 if (users[i].role === 'admin') users[i].brands = brands;
             }
             localStorage.setItem("gm_users", JSON.stringify(users));
-            window.currentUser.brands = brands;
-            localStorage.setItem("gm_logged_user", JSON.stringify(window.currentUser));
+            if (window.currentUser.role === 'admin') {
+                window.currentUser.brands = brands;
+                localStorage.setItem("gm_logged_user", JSON.stringify(window.currentUser));
+            }
             document.getElementById("newBrandInput").value = "";
             loadAllBrands();
             populateFilterBrand();
@@ -1248,6 +1254,10 @@
             var type = document.getElementById("invoiceType").value;
             var editId = document.getElementById("editEntryId").value;
             var brand = document.getElementById("brandSelect").value;
+            if (!brand) {
+                showToast('দয়া করে একটি ব্র্যান্ড সিলেক্ট করুন', 'error');
+                return;
+            }
             var soValue = "N/A";
             if (type === "Stock Out" || type === "Claim Received") {
                 soValue = document.getElementById("soSelect").value || "N/A";
@@ -1401,7 +1411,7 @@
         window.renderDashboard = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : (window.currentUser.brands || []);
             var allAllowed = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
             var totalIn = 0, totalOut = 0, totalClaimSubmitted = 0, totalClaimReceived = 0;
@@ -1454,7 +1464,7 @@
         window.renderHistoryTable = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : (window.currentUser.brands || []);
             var filtered = entries.filter(function(e) { return allowedBrands.indexOf(e.brand) !== -1; });
 
             var search = (document.getElementById("searchInput") ? document.getElementById("searchInput").value : "").toLowerCase();
@@ -1701,7 +1711,7 @@
         window.exportAnalyticsCSV = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : (window.currentUser.brands || []);
             var csv = "Brand,Stock In,Stock Out,Pending Claim,Stock Balance\n";
             for (var i = 0; i < allowedBrands.length; i++) {
                 var b = allowedBrands[i];
@@ -1726,12 +1736,12 @@
         window.renderAnalytics = function() {
             var entries = JSON.parse(localStorage.getItem("gm_entries")) || [];
             var brands = JSON.parse(localStorage.getItem("gm_brands")) || [];
-            var allowedBrands = window.currentUser.role === 'admin' ? brands : brands.filter(function(b) { return window.currentUser.brands.indexOf(b) !== -1; });
+            var allowedBrands = window.currentUser.role === 'admin' ? brands : (window.currentUser.brands || []);
             var container = document.getElementById("analyticsContainer");
             if (!container) return;
             container.innerHTML = "";
             if (allowedBrands.length === 0) {
-                container.innerHTML = '<p class="text-gray-400 col-span-full text-center py-8">কোনো ব্র্যান্ড নেই</p>';
+                container.innerHTML = '<p class="text-gray-400 col-span-full text-center py-8">কোনো ব্র্যান্ড অ্যাসাইন করা নেই</p>';
                 return;
             }
             for (var i = 0; i < allowedBrands.length; i++) {
