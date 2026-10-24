@@ -553,6 +553,14 @@
                 }
                 db = firebase.firestore();
                 auth = firebase.auth();
+                
+                // সেশন পারসিস্টেন্স সেটআপ (যাতে পেজ রিফ্রেশ করলে লগআউট না হয়ে সেশন বজায় থাকে)
+                auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(function() {
+                    console.log("Persistence set to LOCAL successfully.");
+                }).catch(function(error) {
+                    console.error("Auth persistence error:", error);
+                });
+
                 isFirebaseConnected = true;
                 
                 // Monitor Auth state changes
@@ -977,8 +985,8 @@
             var chks = document.querySelectorAll(".user-brand-chk:checked");
             var assignedBrands = Array.from(chks).map(c => c.value);
 
-            if (!email || !pass || !fullName) {
-                showToast('ইমেইল, পাসওয়ার্ড ও নাম দিন', 'error');
+            if (!email || !fullName) {
+                showToast('ইমেইল ও নাম দিন', 'error');
                 return;
             }
 
@@ -987,17 +995,25 @@
                 return;
             }
 
-            // Create Firebase Auth user
-            auth.createUserWithEmailAndPassword(email, pass).then(function(userCredential) {
-                saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
-            }).catch(function(error) {
-                // If user already exists in auth, just update firestore profile
-                if (error.code === 'auth/email-already-in-use') {
-                    saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
-                } else {
-                    showToast('ইউজার তৈরি ব্যর্থ: ' + error.message, 'error');
+            // যদি এডিট মোড হয় এবং পাসওয়ার্ড খালি থাকে
+            if (editingEmail) {
+                saveUserDataToFirestore(editingEmail, fullName, phone, designation, role, assignedBrands);
+            } else {
+                if (!pass || pass.length < 6) {
+                    showToast('নতুন ইউজারের জন্য অন্তত ৬ অক্ষরের পাসওয়ার্ড দিন', 'error');
+                    return;
                 }
-            });
+                // নতুন ইউজার তৈরি করার জন্য Firebase Auth ব্যবহার
+                auth.createUserWithEmailAndPassword(email, pass).then(function(userCredential) {
+                    saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
+                }).catch(function(error) {
+                    if (error.code === 'auth/email-already-in-use') {
+                        saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
+                    } else {
+                        showToast('ইউজার তৈরি ব্যর্থ: ' + error.message, 'error');
+                    }
+                });
+            }
         }
 
         function saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands) {
