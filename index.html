@@ -492,7 +492,7 @@
                     <h2 class="text-base font-bold text-gray-800">Brand-wise Analytics</h2>
                     <div class="flex gap-2">
                         <button onclick="exportAnalyticsCSV()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-3 rounded-xl">↓ CSV</button>
-                        <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold py-2 px-3 rounded-xl">🖨 Print</button>
+                        <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold py-2 px-4 rounded-xl">🖨 Print</button>
                     </div>
                 </div>
                 <div id="analyticsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -554,7 +554,7 @@
                 db = firebase.firestore();
                 auth = firebase.auth();
                 
-                // FIXED: Compat SDK-এর সঠিক সেশন পারসিস্টেন্স মেথড (লোকাল স্টোরেজে সেশন টিকিয়ে রাখা)
+                // সেশন পারসিস্টেন্স সেটআপ (লোকাল স্টোরেজে সেশন টিকিয়ে রাখা)
                 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(function() {
                     console.log("Persistence set to LOCAL successfully.");
                 }).catch(function(error) {
@@ -563,20 +563,33 @@
 
                 isFirebaseConnected = true;
                 
-                // Monitor Auth state changes
+                // নিরাপদ অনঅথস্টেট চেঞ্জ (লগআউট লুপ রোধ করা হয়েছে)
                 auth.onAuthStateChanged(function(firebaseUser) {
                     if (firebaseUser) {
-                        // Fetch user details from Firestore
                         db.collection("users").doc(firebaseUser.email).get().then(function(doc) {
                             if (doc.exists) {
                                 currentUser = doc.data();
-                                localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
-                                showMainApp();
                             } else {
-                                handleLogout();
+                                // ফায়ারস্টোরে না থাকলে ডিফল্ট ইউজার অবজেক্ট তৈরি করে অ্যাপ রান করাবে (লগআউট লুপ হবে না)
+                                currentUser = {
+                                    email: firebaseUser.email,
+                                    fullName: firebaseUser.email.split('@')[0],
+                                    role: firebaseUser.email === "admin@goodmart.com" ? "admin" : "user",
+                                    brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
+                                };
                             }
+                            localStorage.setItem("gm_logged_user", JSON.stringify(currentUser));
+                            showMainApp();
                         }).catch(function(e) {
-                            console.error(e);
+                            console.error("User fetch error:", e);
+                            // ফেইল করলেও সেশন বজায় রাখতে লোকাল ডেটা বা ফால்ব্যাক ব্যবহার করা হবে
+                            currentUser = JSON.parse(localStorage.getItem("gm_logged_user")) || {
+                                email: firebaseUser.email,
+                                fullName: "User",
+                                role: "user",
+                                brands: ["Dabur", "Ferrero", "Kodomo", "Nivea", "Fogg"]
+                            };
+                            showMainApp();
                         });
                     } else {
                         currentUser = null;
@@ -972,6 +985,7 @@
             });
         }
 
+        // ইউজার এডিট বা নতুন ইউজার সাবমিট করার নিখুঁত লজিক
         function handleUserSubmit(e) {
             e.preventDefault();
             var editingEmail = document.getElementById("editingUsername").value.trim();
@@ -996,14 +1010,13 @@
             }
 
             if (editingEmail) {
-                // FIXED: এডিট মোড হলে সরাসরি ফায়ারস্টোরে আপডেট হবে (নতুন অ্যাকাউন্ট ক্রিয়েট করার ঝামেলা ছাড়াই)
+                // এডিট মোড: সরাসরি ফায়ারস্টোরে আপডেট হবে
                 saveUserDataToFirestore(editingEmail, fullName, phone, designation, role, assignedBrands);
             } else {
                 if (!pass || pass.length < 6) {
                     showToast('নতুন ইউজারের জন্য অন্তত ৬ অক্ষরের পাসওয়ার্ড দিন', 'error');
                     return;
                 }
-                // নতুন ইউজার তৈরি
                 auth.createUserWithEmailAndPassword(email, pass).then(function(userCredential) {
                     saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
                 }).catch(function(error) {
@@ -1039,7 +1052,10 @@
         function editUser(email) {
             var users = JSON.parse(localStorage.getItem("gm_users")) || [];
             var u = users.find(x => x.email.toLowerCase() === email.toLowerCase());
-            if (!u) return;
+            if (!u) {
+                showToast('ইউজার পাওয়া যায়নি', 'error');
+                return;
+            }
 
             document.getElementById("editingUsername").value = u.email;
             document.getElementById("newFullName").value = u.fullName || "";
