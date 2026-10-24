@@ -554,7 +554,7 @@
                 db = firebase.firestore();
                 auth = firebase.auth();
                 
-                // সেশন পারসিস্টেন্স সেটআপ (যাতে পেজ রিফ্রেশ করলে লগআউট না হয়ে সেশন বজায় থাকে)
+                // FIXED: Compat SDK-এর সঠিক সেশন পারসিস্টেন্স মেথড (লোকাল স্টোরেজে সেশন টিকিয়ে রাখা)
                 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(function() {
                     console.log("Persistence set to LOCAL successfully.");
                 }).catch(function(error) {
@@ -995,15 +995,15 @@
                 return;
             }
 
-            // যদি এডিট মোড হয় এবং পাসওয়ার্ড খালি থাকে
             if (editingEmail) {
+                // FIXED: এডিট মোড হলে সরাসরি ফায়ারস্টোরে আপডেট হবে (নতুন অ্যাকাউন্ট ক্রিয়েট করার ঝামেলা ছাড়াই)
                 saveUserDataToFirestore(editingEmail, fullName, phone, designation, role, assignedBrands);
             } else {
                 if (!pass || pass.length < 6) {
                     showToast('নতুন ইউজারের জন্য অন্তত ৬ অক্ষরের পাসওয়ার্ড দিন', 'error');
                     return;
                 }
-                // নতুন ইউজার তৈরি করার জন্য Firebase Auth ব্যবহার
+                // নতুন ইউজার তৈরি
                 auth.createUserWithEmailAndPassword(email, pass).then(function(userCredential) {
                     saveUserDataToFirestore(email, fullName, phone, designation, role, assignedBrands);
                 }).catch(function(error) {
