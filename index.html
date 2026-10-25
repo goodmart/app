@@ -1602,10 +1602,11 @@
                 return;
             }
 
-            var csv = "Date,Brand,Invoice Type,Invoice Number,Stock In,Stock Out,Claim,Net Stock Out\n";
+            // CSV হেডার লাইনে Sales Officer কলাম যুক্ত করা হলো
+            var csv = "Date,Brand,Sales Officer,Invoice Type,Invoice Number,Stock In,Stock Out,Claim,Net Stock Out\n";
 
             if (openingBalanceTotal !== 0 && fromDate) {
-                csv += fromDate + ",All Brands,Opening Balance,OPN-001," + openingBalanceTotal.toFixed(2) + ",,,\n";
+                csv += fromDate + ",All Brands,N/A,Opening Balance,OPN-001," + openingBalanceTotal.toFixed(2) + ",,,\n";
             }
 
             var totalIn = openingBalanceTotal > 0 ? openingBalanceTotal : 0;
@@ -1624,14 +1625,15 @@
                     totalNetOut += ((e.debit || 0) - (e.claim || 0));
                 }
 
-                csv += e.date + "," + e.brand + "," + e.type + "," + (e.invoiceNum || "") + "," + (e.credit ? e.credit : "") + "," + (e.debit ? e.debit : "") + "," + (e.claim ? e.claim : "") + "," + (netOutVal !== "" ? netOutVal.toFixed(2) : "") + "\n";
+                var soName = e.so || "N/A";
+                csv += e.date + "," + e.brand + "," + soName + "," + e.type + "," + (e.invoiceNum || "") + "," + (e.credit ? e.credit : "") + "," + (e.debit ? e.debit : "") + "," + (e.claim ? e.claim : "") + "," + (netOutVal !== "" ? netOutVal.toFixed(2) : "") + "\n";
             }
 
             var stockRemaining = totalIn - totalOut;
 
             csv += "\n";
-            csv += ",,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalNetOut.toFixed(2) + "\n";
-            csv += ",,,Stock Remaining,,,,," + stockRemaining.toFixed(2) + "\n";
+            csv += ",,,,," + totalIn.toFixed(2) + "," + totalOut.toFixed(2) + "," + totalClaim.toFixed(2) + "," + totalNetOut.toFixed(2) + "\n";
+            csv += ",,,,,Stock Remaining,,," + stockRemaining.toFixed(2) + "\n";
 
             var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
             var link = document.createElement("a");
@@ -1666,13 +1668,14 @@
                     var newEntries = [];
                     for (var i = 1; i < lines.length; i++) {
                         var line = lines[i].trim();
-                        if (!line || line.indexOf("Stock Remaining") !== -1 || line.startsWith(",,,")) continue;
+                        if (!line || line.indexOf("Stock Remaining") !== -1 || line.startsWith(",,,,") || line.startsWith(",,,")) continue;
                         var cols = parseCSVLine(line);
-                        if (cols.length < 4) continue;
-                        var date = cols[0], brand = cols[1], type = cols[2], invNo = cols[3];
-                        var stockIn = parseFloat(cols[4]) || 0;
-                        var stockOut = parseFloat(cols[5]) || 0;
-                        var claim = parseFloat(cols[6]) || 0;
+                        if (cols.length < 5) continue;
+                        // নতুন ফরম্যাট অনুযায়ী: Date(0), Brand(1), SO(2), Type(3), InvNo(4), In(5), Out(6), Claim(7)
+                        var date = cols[0], brand = cols[1], so = cols[2], type = cols[3], invNo = cols[4];
+                        var stockIn = parseFloat(cols[5]) || 0;
+                        var stockOut = parseFloat(cols[6]) || 0;
+                        var claim = parseFloat(cols[7]) || 0;
                         
                         if (type === "Opening Balance") { type = "Stock In"; }
 
@@ -1681,7 +1684,7 @@
                         
                         var entryObj = {
                             id: 'entry_' + Date.now() + '_' + i,
-                            date: date, brand: brand, so: "N/A", type: type,
+                            date: date, brand: brand, so: so || "N/A", type: type,
                             invoiceNum: invNo || "IMP-" + i,
                             credit: type === "Stock In" ? stockIn : 0,
                             debit: type === "Stock Out" ? stockOut : 0,
